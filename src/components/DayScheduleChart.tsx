@@ -8,6 +8,7 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -83,10 +84,27 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps) {
   const [isClient, setIsClient] = useState(false);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Get effective options for labels
+  const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEffect(() => {
+    const todayUTC = new Date();
+    const isSelectedDateToday =
+      selectedDate.getUTCFullYear() === todayUTC.getUTCFullYear() &&
+      selectedDate.getUTCMonth() === todayUTC.getUTCMonth() &&
+      selectedDate.getUTCDate() === todayUTC.getUTCDate();
+
+    if (isSelectedDateToday) {
+      const now = new Date();
+      const currentMinutesUTC = now.getUTCHours() * 60 + now.getUTCMinutes();
+      setCurrentTimeLinePosition(currentMinutesUTC);
+    } else {
+      setCurrentTimeLinePosition(null);
+    }
+  }, [selectedDate]);
 
   // Chart config now uses effective labels but fixed icons/colors from defaults
   const chartConfig = useMemo(() => {
@@ -162,7 +180,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     );
   }
   
-  if (chartData.length === 0) {
+  if (chartData.length === 0 && currentTimeLinePosition === null) {
      return (
       <Card>
         <CardHeader><CardTitle>Daily Schedule Graph</CardTitle></CardHeader>
@@ -173,7 +191,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     );
   }
 
-  const yAxisWidth = Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40;
+  const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80;
 
   return (
     <Card>
@@ -181,7 +199,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         <CardTitle>Daily Schedule Graph - {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} (UTC)</CardTitle>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="min-h-[200px] h-[calc(40px*var(--visible-tasks,10)+100px)] max-h-[800px] w-full" style={{ '--visible-tasks': chartData.length } as React.CSSProperties}>
+        <ChartContainer config={chartConfig} className="min-h-[200px] h-[calc(40px*var(--visible-tasks,10)+100px)] max-h-[800px] w-full" style={{ '--visible-tasks': Math.max(1, chartData.length) } as React.CSSProperties}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               layout="vertical"
@@ -203,18 +221,39 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 tickFormatter={(tick) => chartData.find(d => d.id === tick)?.taskNameForAxis || ''}
                 width={yAxisWidth}
                 interval={0}
+                domain={chartData.length > 0 ? undefined : ['No Tasks']} // Provide a dummy domain if no tasks
+                ticks={chartData.length > 0 ? undefined : []} // Hide ticks if no tasks
               />
               <Tooltip
                 cursor={{ fill: 'hsla(var(--muted), 0.5)' }}
                 content={<CustomTooltip />}
               />
               <Legend content={<ChartLegendContent />} />
-              <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
-                {chartData.map((entry) => (
-                  // Use taskValueToChartKey to ensure we reference the correct key in chartConfig
-                  <Cell key={`cell-${entry.id}`} fill={`var(--color-${taskValueToChartKey(entry.fillColorKey)})`} />
-                ))}
-              </Bar>
+              {chartData.length > 0 && (
+                <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
+                  {chartData.map((entry) => (
+                    // Use taskValueToChartKey to ensure we reference the correct key in chartConfig
+                    <Cell key={`cell-${entry.id}`} fill={`var(--color-${taskValueToChartKey(entry.fillColorKey)})`} />
+                  ))}
+                </Bar>
+              )}
+               {currentTimeLinePosition !== null && (
+                <ReferenceLine
+                  x={currentTimeLinePosition}
+                  stroke="hsl(var(--destructive))"
+                  strokeWidth={2}
+                  strokeDasharray="8 4"
+                  label={{
+                    value: "Now",
+                    position: "insideTopRight",
+                    fill: "hsl(var(--destructive))",
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    dy: -10,
+                    dx: 10
+                  }}
+                />
+              )}
             </BarChart>
           </ResponsiveContainer>
         </ChartContainer>
