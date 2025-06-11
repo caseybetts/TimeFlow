@@ -5,25 +5,25 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { TaskForm } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
-import type { Task } from "@/types";
+import type { Task, SpreadsheetTaskRow } from "@/types"; // Added SpreadsheetTaskRow
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, Loader2, Settings } from "lucide-react"; // Added Settings
+import { PlusCircle, Sun, Moon, Loader2, Settings } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
-import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal"; // Added import
-import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig"; // Added import
+import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
+import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
+import { SpreadsheetTaskInput } from "@/components/SpreadsheetTaskInput"; // Added import
+import { getTaskTypeDetails } from "@/lib/task-utils"; // Added import
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
   const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false); // Added state for settings modal
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { toast } = useToast();
   const [selectedDateForChart, setSelectedDateForChart] = useState(new Date());
-
-  // Initialize task type configurations. This hook also provides the effective options.
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
 
 
@@ -58,6 +58,27 @@ export default function HomePage() {
     toast({
       title: "Task Added",
       description: `"${task.name}" has been added to your schedule.`,
+      variant: "default",
+      className: "bg-accent text-accent-foreground border-accent"
+    });
+  };
+
+  const handleBatchAddTasks = (tasksData: Omit<Task, "id" | "isCompleted">[]) => {
+    const newTasks: Task[] = tasksData.map(taskData => {
+      const taskTypeDetails = getTaskTypeDetails(taskData.type, effectiveTaskTypeOptions);
+      return {
+        ...taskData,
+        id: crypto.randomUUID(),
+        isCompleted: false,
+        preActionDuration: taskTypeDetails?.preActionDuration ?? 0,
+        postActionDuration: taskTypeDetails?.postActionDuration ?? 0,
+      };
+    });
+
+    setTasks(prevTasks => [...prevTasks, ...newTasks]);
+    toast({
+      title: "Tasks Added",
+      description: `${newTasks.length} task(s) have been added to your schedule.`,
       variant: "default",
       className: "bg-accent text-accent-foreground border-accent"
     });
@@ -142,12 +163,14 @@ export default function HomePage() {
             {isDarkMode ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
           </Button>
           <Button onClick={openAddModal} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Task
+            <PlusCircle className="mr-2 h-4 w-4" /> Add Task (Modal)
           </Button>
         </div>
       </header>
 
       <main className="flex-grow space-y-8">
+        <SpreadsheetTaskInput onBatchAddTasks={handleBatchAddTasks} />
+
         <section>
           <h2 className="text-2xl font-headline font-semibold text-foreground mb-4">Task List</h2>
           <Timeline

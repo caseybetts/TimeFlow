@@ -38,3 +38,12 @@ export interface UserEditableTaskTypeFields {
 
 // Structure for storing user configurations in localStorage
 export type UserTaskTypesConfig = Partial<Record<TaskType, UserEditableTaskTypeFields>>;
+
+// Temporary type for rows in the SpreadsheetTaskInput
+export interface SpreadsheetTaskRow {
+  tempId: string; // Temporary ID for React key purposes
+  name: string;
+  startTime: string; // Store as string matching datetime-local input
+  duration: string; // Store as string from input, convert to number on submit
+  type: TaskType;
+}
