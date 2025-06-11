@@ -19,6 +19,7 @@ import {
   type ChartConfig,
   ChartLegend,
   ChartLegendContent,
+  ChartTooltipContent, // Added import
 } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
 import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
@@ -29,14 +30,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface DayScheduleChartProps {
   tasks: Task[];
-  selectedDate: Date; 
+  selectedDate: Date;
 }
 
 interface ProcessedChartDataPoint {
   id: string;
   taskNameForAxis: string;
-  timeRange: [number, number]; 
-  fillColorKey: TaskType; 
+  timeRange: [number, number];
+  fillColorKey: TaskType;
   originalTask: Task;
   tooltipLabel: string;
 }
@@ -96,7 +97,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     const range = selectedTimeRange || DEFAULT_FULL_DAY_TIME_RANGE;
     const startMinutes = range.startHour * 60 + range.startMinute;
     const endMinutes = range.endHour * 60 + range.endMinute;
-    return [startMinutes, Math.min(endMinutes, 1440)]; 
+    return [startMinutes, Math.min(endMinutes, 1440)];
   }, [selectedTimeRange]);
 
 
@@ -125,7 +126,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     return effectiveTaskTypeOptions.reduce((acc, option) => {
       const key = taskValueToChartKey(option.value);
       const defaultOption = DEFAULT_TASK_TYPE_OPTIONS.find(defOpt => defOpt.value === option.value);
-      let color = "hsl(var(--muted))"; 
+      let color = "hsl(var(--muted))";
 
       if (option.value === "work") color = "hsl(var(--chart-1))";
       else if (option.value === "personal") color = "hsl(var(--chart-2))";
@@ -146,7 +147,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     const dayStart = new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate(), 0, 0, 0, 0));
 
     const tasksForDay = tasks.filter(task => {
-      const coreTaskStartTime = new Date(task.startTime); 
+      const coreTaskStartTime = new Date(task.startTime);
       const taskEffectiveStart = new Date(coreTaskStartTime.getTime() - task.preActionDuration * 60000);
       const taskEffectiveEnd = new Date(coreTaskStartTime.getTime() + (task.duration + task.postActionDuration) * 60000);
       
@@ -174,7 +175,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       endMinutesOnDay = Math.min(xAxisDomain[1], endMinutesOnDay);
       
       if (startMinutesOnDay >= xAxisDomain[1] || endMinutesOnDay <= xAxisDomain[0] || startMinutesOnDay >= endMinutesOnDay) {
-        return null; 
+        return null;
       }
       
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
@@ -186,7 +187,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         id: task.id,
         taskNameForAxis: taskNameForAxisDisplay,
         timeRange: [startMinutesOnDay, endMinutesOnDay] as [number, number],
-        fillColorKey: task.type, 
+        fillColorKey: task.type,
         originalTask: task,
         tooltipLabel: taskNameDisplay,
       };
@@ -278,7 +279,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
                   {chartData.map((entry) => {
                     const cellColorKey = taskValueToChartKey(entry.fillColorKey);
-                    const colorForCell = chartConfig[cellColorKey]?.color || "hsl(var(--muted))"; 
+                    const colorForCell = chartConfig[cellColorKey]?.color || "hsl(var(--muted))";
                     return (
                       <Cell key={`cell-${entry.id}`} fill={colorForCell} />
                     );
@@ -291,7 +292,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                   stroke="hsl(var(--destructive))"
                   strokeWidth={2}
                   strokeDasharray="8 4"
-                  ifOverflow="hidden" 
+                  ifOverflow="hidden"
                   label={{
                     value: "Now",
                     position: "insideTopRight",
