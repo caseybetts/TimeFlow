@@ -2,7 +2,8 @@
 "use client";
 
 import { useState } from "react";
-import type { SpreadsheetTaskRow, Task, TaskType } from "@/types";
+import type { SpreadsheetTaskRow, Task, TaskType, Spacecraft } from "@/types";
+import { SPACECRAFT_OPTIONS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
-import { PlusCircle, Trash2, SaveAll, Copy } from "lucide-react"; // Added Copy icon
+import { PlusCircle, Trash2, SaveAll, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface SpreadsheetTaskInputProps {
@@ -44,6 +45,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
   const { toast } = useToast();
 
   const defaultTaskType = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : DEFAULT_TASK_TYPE_OPTIONS[0].value;
+  const defaultSpacecraft = SPACECRAFT_OPTIONS[0];
 
   const handleAddRow = () => {
     setRows([
@@ -51,6 +53,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       {
         tempId: crypto.randomUUID(),
         name: "",
+        spacecraft: defaultSpacecraft,
         startTime: getUtcDateTimeLocalString(new Date()),
         duration: "30",
         type: defaultTaskType,
@@ -110,32 +113,33 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
     }
 
     for (const row of rows) {
-      if (!row.name.trim()) {
-        toast({ title: "Validation Error", description: `Task name is required for row starting at ${row.startTime}.`, variant: "destructive" });
-        isValid = false;
-        break;
-      }
-      const durationNum = parseInt(row.duration, 10);
-      if (isNaN(durationNum) || durationNum <= 0) {
-        toast({ title: "Validation Error", description: `Duration must be a positive number for task "${row.name}".`, variant: "destructive" });
-        isValid = false;
-        break;
-      }
-      if (isNaN(Date.parse(row.startTime + 'Z'))) {
-         toast({ title: "Validation Error", description: `Invalid start time for task "${row.name}".`, variant: "destructive" });
-        isValid = false;
-        break;
-      }
-
       const taskTypeDetails = getTaskTypeDetails(row.type, effectiveTaskTypeOptions);
       if (!taskTypeDetails) {
         toast({ title: "Error", description: `Could not find details for task type "${row.type}".`, variant: "destructive" });
         isValid = false;
         break;
       }
+      
+      let taskName = row.name;
+      if (!taskName || taskName.trim() === "") {
+        taskName = `${taskTypeDetails.label} - ${row.spacecraft}`;
+      }
+
+      const durationNum = parseInt(row.duration, 10);
+      if (isNaN(durationNum) || durationNum <= 0) {
+        toast({ title: "Validation Error", description: `Duration must be a positive number for task "${taskName}".`, variant: "destructive" });
+        isValid = false;
+        break;
+      }
+      if (isNaN(Date.parse(row.startTime + 'Z'))) {
+         toast({ title: "Validation Error", description: `Invalid start time for task "${taskName}".`, variant: "destructive" });
+        isValid = false;
+        break;
+      }
 
       tasksToAdd.push({
-        name: row.name,
+        name: taskName,
+        spacecraft: row.spacecraft,
         startTime: new Date(row.startTime + 'Z').toISOString(),
         duration: durationNum,
         type: row.type,
@@ -146,7 +150,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
 
     if (isValid && tasksToAdd.length > 0) {
       onBatchAddTasks(tasksToAdd);
-      setRows([]); // Clear rows after successful submission
+      setRows([]); 
     } else if (isValid && tasksToAdd.length === 0 && rows.length > 0) {
         toast({
             title: "No Valid Tasks",
@@ -170,11 +174,12 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         <Table className="mb-4">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[28%]">Task Name</TableHead>
-              <TableHead className="w-[28%]">Start Time (UTC)</TableHead>
-              <TableHead className="w-[12%]">Duration (min)</TableHead>
-              <TableHead className="w-[18%]">Type</TableHead>
-              <TableHead className="w-[14%] text-right">Actions</TableHead>
+              <TableHead className="w-[20%]">Task Name (Optional)</TableHead>
+              <TableHead className="w-[15%]">Spacecraft</TableHead>
+              <TableHead className="w-[25%]">Start Time (UTC)</TableHead>
+              <TableHead className="w-[10%]">Duration (min)</TableHead>
+              <TableHead className="w-[15%]">Type</TableHead>
+              <TableHead className="w-[15%] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -182,13 +187,32 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
               <TableRow key={row.tempId}>
                 <TableCell>
                   <Input
-                    value={row.name}
+                    value={row.name || ""}
                     onChange={(e) =>
                       handleInputChange(row.tempId, "name", e.target.value)
                     }
                     placeholder="E.g., Team Meeting"
                     className="h-9"
                   />
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={row.spacecraft}
+                    onValueChange={(value) =>
+                      handleInputChange(row.tempId, "spacecraft", value as Spacecraft)
+                    }
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select spacecraft" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SPACECRAFT_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </TableCell>
                 <TableCell>
                   <Input

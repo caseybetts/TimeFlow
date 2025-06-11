@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Task, TaskType, TaskTypeOption, DayChartTimeRangeOption } from "@/types";
+import type { Task, TaskType, DayChartTimeRangeOption } from "@/types";
 import {
   Bar,
   BarChart,
@@ -16,7 +16,6 @@ import {
 } from "recharts";
 import {
   ChartContainer,
-  ChartTooltipContent,
   type ChartConfig,
   ChartLegend,
   ChartLegendContent,
@@ -30,14 +29,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface DayScheduleChartProps {
   tasks: Task[];
-  selectedDate: Date; // This is the UTC date to display
+  selectedDate: Date; 
 }
 
 interface ProcessedChartDataPoint {
   id: string;
   taskNameForAxis: string;
-  timeRange: [number, number]; // [startMinuteOnDay, endMinuteOnDay]
-  fillColorKey: TaskType; // This will map to a key in chartConfig
+  timeRange: [number, number]; 
+  fillColorKey: TaskType; 
   originalTask: Task;
   tooltipLabel: string;
 }
@@ -52,6 +51,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const data = payload[0].payload as ProcessedChartDataPoint;
     const task = data.originalTask;
     const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
+    const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
+
 
     const coreStartTime = new Date(task.startTime);
     const effectiveStartTime = new Date(coreStartTime.getTime() - task.preActionDuration * 60000);
@@ -60,8 +61,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
     return (
       <ChartTooltipContent
-        className="w-[280px] bg-background"
-        label={ <div className="font-bold">{task.name} ({taskTypeDetails?.label || task.type})</div> }
+        className="w-[300px] bg-background" // Increased width slightly
+        label={ <div className="font-bold">{taskNameDisplay} ({taskTypeDetails?.label || task.type} / {task.spacecraft})</div> }
         content={
           <div className="text-sm space-y-1">
             {task.preActionDuration > 0 && (
@@ -95,7 +96,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     const range = selectedTimeRange || DEFAULT_FULL_DAY_TIME_RANGE;
     const startMinutes = range.startHour * 60 + range.startMinute;
     const endMinutes = range.endHour * 60 + range.endMinute;
-    return [startMinutes, Math.min(endMinutes, 1440)]; // Cap at 1440 minutes (24:00)
+    return [startMinutes, Math.min(endMinutes, 1440)]; 
   }, [selectedTimeRange]);
 
 
@@ -176,16 +177,21 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         return null; 
       }
       
+      const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
+      const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
+      const taskNameForAxisDisplay = `${taskNameDisplay.substring(0,25)}${taskNameDisplay.length > 25 ? '...' : ''} (${task.spacecraft})`;
+
+
       return {
         id: task.id,
-        taskNameForAxis: `${task.name.substring(0,25)}${task.name.length > 25 ? '...' : ''}`,
+        taskNameForAxis: taskNameForAxisDisplay,
         timeRange: [startMinutesOnDay, endMinutesOnDay] as [number, number],
         fillColorKey: task.type, 
         originalTask: task,
-        tooltipLabel: task.name,
+        tooltipLabel: taskNameDisplay,
       };
     }).filter(Boolean) as ProcessedChartDataPoint[];
-  }, [tasks, selectedDate, xAxisDomain]);
+  }, [tasks, selectedDate, xAxisDomain, effectiveTaskTypeOptions]);
 
   if (!isClient) {
     return (
@@ -243,7 +249,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             <BarChart
               layout="vertical"
               data={chartData}
-              margin={{ top: 5, right: 30, left: Math.min(200, yAxisWidth), bottom: 20 }}
+              margin={{ top: 5, right: 30, left: Math.min(250, yAxisWidth), bottom: 20 }} // Increased left margin for longer names
               barCategoryGap="20%"
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
@@ -272,7 +278,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
                   {chartData.map((entry) => {
                     const cellColorKey = taskValueToChartKey(entry.fillColorKey);
-                    // Directly use the color defined in chartConfig for the Cell's fill
                     const colorForCell = chartConfig[cellColorKey]?.color || "hsl(var(--muted))"; 
                     return (
                       <Cell key={`cell-${entry.id}`} fill={colorForCell} />

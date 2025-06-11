@@ -29,22 +29,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Task, TaskType } from "@/types";
-import { TASK_TYPES } from "@/types"; // Use TASK_TYPES for zod enum
+import type { Task, TaskType, Spacecraft } from "@/types";
+import { TASK_TYPES, SPACECRAFT_OPTIONS } from "@/types";
 import { getTaskTypeDetails } from "@/lib/task-utils";
-import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig"; // Import the new hook
+import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { PlusCircle, Edit3 } from "lucide-react";
 import { useEffect } from "react";
 
 const taskFormSchema = z.object({
-  name: z.string().min(1, "Task name is required."),
+  name: z.string().optional(),
+  spacecraft: z.enum(SPACECRAFT_OPTIONS, {
+    required_error: "Spacecraft selection is required.",
+  }),
   startTime: z.string().refine((val) => {
     return !isNaN(Date.parse(val + 'Z')) || !isNaN(Date.parse(val));
   }, {
     message: "Invalid start time format. Please ensure it's a complete date and time.",
   }),
   duration: z.coerce.number().min(1, "Duration must be at least 1 minute."),
-  type: z.enum(TASK_TYPES), // Use the raw TaskType values for Zod validation
+  type: z.enum(TASK_TYPES),
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
@@ -66,22 +69,25 @@ const getUtcDateTimeLocalString = (date: Date): string => {
 };
 
 export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFormProps) {
-  const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Get configured task types
+  const { effectiveTaskTypeOptions } = useTaskTypeConfig();
 
   const defaultInitialUtcTimeForInput = getUtcDateTimeLocalString(new Date());
   const defaultTaskType = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
+  const defaultSpacecraft = SPACECRAFT_OPTIONS[0];
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: initialTask
       ? {
-          name: initialTask.name,
+          name: initialTask.name || "",
+          spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           duration: initialTask.duration,
           type: initialTask.type,
         }
       : {
           name: "",
+          spacecraft: defaultSpacecraft,
           startTime: defaultInitialUtcTimeForInput,
           duration: 30,
           type: defaultTaskType,
@@ -93,7 +99,8 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       const defaultTypeForNew = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
       if (initialTask) {
         form.reset({
-          name: initialTask.name,
+          name: initialTask.name || "",
+          spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           duration: initialTask.duration,
           type: initialTask.type,
@@ -101,21 +108,28 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       } else {
         form.reset({
           name: "",
+          spacecraft: defaultSpacecraft,
           startTime: getUtcDateTimeLocalString(new Date()),
           duration: 30,
           type: defaultTypeForNew,
         });
       }
     }
-  }, [initialTask, form, isOpen, effectiveTaskTypeOptions]);
+  }, [initialTask, form, isOpen, effectiveTaskTypeOptions, defaultSpacecraft]);
 
 
   const handleSubmit = (values: TaskFormValues) => {
     const selectedTaskTypeDetails = getTaskTypeDetails(values.type, effectiveTaskTypeOptions);
     
+    let taskName = values.name;
+    if (!taskName || taskName.trim() === "") {
+      taskName = `${selectedTaskTypeDetails?.label || values.type} - ${values.spacecraft}`;
+    }
+
     const task: Task = {
       id: initialTask?.id || crypto.randomUUID(),
-      name: values.name,
+      name: taskName,
+      spacecraft: values.spacecraft,
       startTime: new Date(values.startTime + 'Z').toISOString(),
       duration: values.duration,
       type: values.type,
@@ -142,10 +156,34 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Task Name</FormLabel>
+                  <FormLabel>Task Name (Optional)</FormLabel>
                   <FormControl>
                     <Input placeholder="E.g., Morning Standup" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="spacecraft"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Spacecraft</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a spacecraft" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {SPACECRAFT_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

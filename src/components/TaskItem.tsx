@@ -7,15 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit3, Trash2, Clock, AlertTriangle } from "lucide-react";
+import { Edit3, Trash2, Clock, AlertTriangle, Satellite } from "lucide-react"; // Added Satellite
 import {
-  getTaskTypeColorClass, // This will use default color based on 'value'
-  getTaskTypeIcon,       // This will use default icon based on 'value'
+  getTaskTypeColorClass, 
+  getTaskTypeIcon,       
   formatTaskTime,
   calculateEndTime,
-  getTaskTypeDetails,    // This will use effective options
+  getTaskTypeDetails,    
 } from "@/lib/task-utils";
-import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig"; // Import the hook
+import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { cn } from "@/lib/utils";
 
 interface TaskItemProps {
@@ -28,11 +28,9 @@ interface TaskItemProps {
 export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemProps) {
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
   
-  // Icon and Color are based on the fixed 'value' of the task type
   const Icon = getTaskTypeIcon(task.type); 
   const colorClass = getTaskTypeColorClass(task.type);
 
-  // Details like label, pre/post action labels come from effective (user-configured) options
   const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
 
   const coreTaskStartTimeStr = task.startTime;
@@ -56,7 +54,8 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
   const overallStartTimeForOverdueCheck = task.preActionDuration > 0 ? preActionStartTimeStr : coreTaskStartTimeStr;
   const isOverdue = new Date(overallStartTimeForOverdueCheck) < new Date() && !task.isCompleted;
 
-  const taskDisplayLabel = taskTypeDetails?.label || task.type; // Fallback to task.type if somehow not found
+  const taskDisplayLabel = taskTypeDetails?.label || task.type;
+  const taskNameDisplay = task.name || `${taskDisplayLabel} - ${task.spacecraft}`;
 
   return (
     <Card className={cn("mb-4 shadow-lg transition-all hover:shadow-xl", task.isCompleted ? "opacity-60" : "", isOverdue ? "border-destructive" : "")}>
@@ -68,11 +67,17 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
             </div>
             <div>
               <CardTitle className={cn("text-lg font-headline", task.isCompleted ? "line-through text-muted-foreground" : "")}>
-                {task.name} <span className="text-sm font-normal text-muted-foreground">({taskDisplayLabel})</span>
+                {taskNameDisplay}
               </CardTitle>
-              <CardDescription className="text-xs">
-                {dateInUTC} (UTC)
-              </CardDescription>
+              <div className="flex items-center space-x-2">
+                <CardDescription className="text-xs">
+                  {dateInUTC} (UTC)
+                </CardDescription>
+                <span className="text-xs text-muted-foreground flex items-center">
+                  <Satellite className="mr-1 h-3 w-3" /> {task.spacecraft}
+                </span>
+                 <span className="text-xs text-muted-foreground">({taskDisplayLabel})</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -138,10 +143,10 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
         </div>
         <Separator className="my-3" />
         <div className="flex justify-end space-x-2">
-          <Button variant="outline" size="sm" onClick={() => onEdit(task)} aria-label={`Edit task ${task.name}`}>
+          <Button variant="outline" size="sm" onClick={() => onEdit(task)} aria-label={`Edit task ${taskNameDisplay}`}>
             <Edit3 className="mr-1 h-4 w-4" /> Edit
           </Button>
-          <Button variant="destructive" size="sm" onClick={() => onDelete(task.id)} aria-label={`Delete task ${task.name}`}>
+          <Button variant="destructive" size="sm" onClick={() => onDelete(task.id)} aria-label={`Delete task ${taskNameDisplay}`}>
             <Trash2 className="mr-1 h-4 w-4" /> Delete
           </Button>
         </div>
