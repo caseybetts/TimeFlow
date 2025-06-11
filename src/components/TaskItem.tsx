@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Task } from "@/types";
@@ -6,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit3, Trash2, Clock, CalendarDays, Briefcase, User, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Edit3, Trash2, Clock, AlertTriangle } from "lucide-react";
 import {
   getTaskTypeColorClass,
   getTaskTypeIcon,
   formatTaskTime,
   calculateEndTime,
+  getTaskTypeDetails,
 } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 
@@ -25,11 +27,32 @@ interface TaskItemProps {
 export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemProps) {
   const Icon = getTaskTypeIcon(task.type);
   const colorClass = getTaskTypeColorClass(task.type);
-  const startTimeFormatted = formatTaskTime(task.startTime);
-  const endTimeFormatted = formatTaskTime(calculateEndTime(task.startTime, task.duration));
-  const bufferEndTimeFormatted = formatTaskTime(calculateEndTime(task.startTime, task.duration + task.buffer));
+  const taskTypeDetails = getTaskTypeDetails(task.type);
 
-  const isOverdue = new Date(task.startTime) < new Date() && !task.isCompleted;
+  // Core task start time is task.startTime (already UTC)
+  const coreTaskStartTimeStr = task.startTime;
+  const coreTaskEndTimeStr = calculateEndTime(coreTaskStartTimeStr, task.duration);
+
+  // Pre-action times (if preActionDuration > 0)
+  const preActionStartTimeStr = task.preActionDuration > 0
+    ? calculateEndTime(coreTaskStartTimeStr, -task.preActionDuration)
+    : "";
+
+  // Post-action times (if postActionDuration > 0)
+  const postActionEndTimeStr = task.postActionDuration > 0
+    ? calculateEndTime(coreTaskEndTimeStr, task.postActionDuration)
+    : "";
+
+  const dateInUTC = new Date(task.startTime).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  });
+
+  const overallStartTimeForOverdueCheck = task.preActionDuration > 0 ? preActionStartTimeStr : coreTaskStartTimeStr;
+  const isOverdue = new Date(overallStartTimeForOverdueCheck) < new Date() && !task.isCompleted;
+
 
   return (
     <Card className={cn("mb-4 shadow-lg transition-all hover:shadow-xl", task.isCompleted ? "opacity-60" : "", isOverdue ? "border-destructive" : "")}>
@@ -44,7 +67,7 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
                 {task.name}
               </CardTitle>
               <CardDescription className="text-xs">
-                {new Date(task.startTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                {dateInUTC} (UTC)
               </CardDescription>
             </div>
           </div>
@@ -82,15 +105,30 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0">
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center">
-            <Clock className="mr-2 h-4 w-4 text-primary" />
-            <span>{startTimeFormatted} - {endTimeFormatted} ({task.duration} min)</span>
-          </div>
-          {task.buffer > 0 && (
+        <div className="space-y-1 text-sm">
+          {task.preActionDuration > 0 && (
             <div className="flex items-center text-muted-foreground">
-              <Clock className="mr-2 h-4 w-4" />
-              <span>Buffer: {task.buffer} min (until {bufferEndTimeFormatted})</span>
+              <Clock className="mr-2 h-4 w-4 text-primary opacity-70" />
+              <span>
+                {taskTypeDetails?.preActionLabel || 'Pre-Action'}: {task.preActionDuration} min
+                ({formatTaskTime(preActionStartTimeStr)} - {formatTaskTime(coreTaskStartTimeStr)})
+              </span>
+            </div>
+          )}
+          <div className="flex items-center font-medium">
+            <Clock className="mr-2 h-4 w-4 text-primary" />
+            <span>
+              Core Task: {task.duration} min
+              ({formatTaskTime(coreTaskStartTimeStr)} - {formatTaskTime(coreTaskEndTimeStr)})
+            </span>
+          </div>
+          {task.postActionDuration > 0 && (
+            <div className="flex items-center text-muted-foreground">
+              <Clock className="mr-2 h-4 w-4 text-primary opacity-70" />
+              <span>
+                {taskTypeDetails?.postActionLabel || 'Post-Action'}: {task.postActionDuration} min
+                ({formatTaskTime(coreTaskEndTimeStr)} - {formatTaskTime(postActionEndTimeStr)})
+              </span>
             </div>
           )}
         </div>

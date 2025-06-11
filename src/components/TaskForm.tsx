@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,14 +30,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Task, TaskType } from "@/types";
-import { TASK_TYPE_OPTIONS, inferBuffer } from "@/lib/task-utils";
+import { TASK_TYPE_OPTIONS, getTaskTypeDetails } from "@/lib/task-utils";
 import { PlusCircle, Edit3 } from "lucide-react";
 import { useEffect } from "react";
 
 const taskFormSchema = z.object({
   name: z.string().min(1, "Task name is required."),
-  startTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: "Invalid start time.",
+  startTime: z.string().refine((val) => {
+    // Check if the string can be parsed into a valid date
+    return !isNaN(Date.parse(val));
+  }, {
+    message: "Invalid start time format. Please ensure it's a complete date and time.",
   }),
   duration: z.coerce.number().min(1, "Duration must be at least 1 minute."),
   type: z.enum(TASK_TYPE_OPTIONS.map(opt => opt.value) as [TaskType, ...TaskType[]]),
@@ -52,50 +56,63 @@ interface TaskFormProps {
 }
 
 export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFormProps) {
+  const defaultStartTime = new Date();
+  // Adjust to UTC for default display string, then format for datetime-local
+  const defaultStartTimeForInput = new Date(defaultStartTime.valueOf() - defaultStartTime.getTimezoneOffset() * 60000).toISOString().substring(0, 16);
+
+
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: initialTask
       ? {
           name: initialTask.name,
-          startTime: initialTask.startTime ? new Date(initialTask.startTime).toISOString().substring(0, 16) : "", // Format for datetime-local
+          // When editing, convert stored UTC time back to local for datetime-local input
+          startTime: new Date(new Date(initialTask.startTime).valueOf() - new Date().getTimezoneOffset() * 60000).toISOString().substring(0, 16),
           duration: initialTask.duration,
           type: initialTask.type,
         }
       : {
           name: "",
-          startTime: new Date().toISOString().substring(0,16),
+          startTime: defaultStartTimeForInput,
           duration: 30,
           type: "work",
         },
   });
 
   useEffect(() => {
-    if (initialTask) {
-      form.reset({
-        name: initialTask.name,
-        startTime: initialTask.startTime ? new Date(initialTask.startTime).toISOString().substring(0, 16) : "",
-        duration: initialTask.duration,
-        type: initialTask.type,
-      });
-    } else {
-      form.reset({
-        name: "",
-        startTime: new Date().toISOString().substring(0,16),
-        duration: 30,
-        type: "work",
-      });
+    if (isOpen) { // Only reset form when dialog opens
+      if (initialTask) {
+        form.reset({
+          name: initialTask.name,
+          startTime: new Date(new Date(initialTask.startTime).valueOf() - new Date().getTimezoneOffset() * 60000).toISOString().substring(0, 16),
+          duration: initialTask.duration,
+          type: initialTask.type,
+        });
+      } else {
+        const now = new Date();
+        const localDateTimeString = new Date(now.valueOf() - now.getTimezoneOffset() * 60000).toISOString().substring(0,16);
+        form.reset({
+          name: "",
+          startTime: localDateTimeString,
+          duration: 30,
+          type: "work",
+        });
+      }
     }
   }, [initialTask, form, isOpen]);
 
 
   const handleSubmit = (values: TaskFormValues) => {
+    const taskTypeDetails = getTaskTypeDetails(values.type);
     const task: Task = {
       id: initialTask?.id || crypto.randomUUID(),
       name: values.name,
+      // Convert the local datetime-local string to a UTC ISO string
       startTime: new Date(values.startTime).toISOString(),
       duration: values.duration,
       type: values.type,
-      buffer: inferBuffer(values.type),
+      preActionDuration: taskTypeDetails?.preActionDuration || 0,
+      postActionDuration: taskTypeDetails?.postActionDuration || 0,
       isCompleted: initialTask?.isCompleted || false,
     };
     onSubmit(task);
@@ -130,7 +147,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
               name="startTime"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Start Time</FormLabel>
+                  <FormLabel>Start Time (Your Local Time)</FormLabel>
                   <FormControl>
                     <Input type="datetime-local" {...field} />
                   </FormControl>
@@ -143,7 +160,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
               name="duration"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Duration (minutes)</FormLabel>
+                  <FormLabel>Core Duration (minutes)</FormLabel>
                   <FormControl>
                     <Input type="number" placeholder="30" {...field} />
                   </FormControl>

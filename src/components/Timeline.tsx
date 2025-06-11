@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Task } from "@/types";
@@ -13,7 +14,12 @@ interface TimelineProps {
 }
 
 export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete }: TimelineProps) {
-  const sortedTasks = [...tasks].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  const sortedTasks = [...tasks].sort((a, b) => {
+    // Sort by the actual start time (core task start time - preActionDuration)
+    const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
+    const effectiveStartTimeB = new Date(b.startTime).getTime() - (b.preActionDuration * 60000);
+    return effectiveStartTimeA - effectiveStartTimeB;
+  });
 
   if (sortedTasks.length === 0) {
     return (
