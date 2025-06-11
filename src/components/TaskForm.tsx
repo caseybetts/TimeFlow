@@ -30,21 +30,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Task, TaskType } from "@/types";
-import { TASK_TYPE_OPTIONS, getTaskTypeDetails } from "@/lib/task-utils";
+import { TASK_TYPES } from "@/types"; // Use TASK_TYPES for zod enum
+import { getTaskTypeDetails } from "@/lib/task-utils";
+import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig"; // Import the new hook
 import { PlusCircle, Edit3 } from "lucide-react";
 import { useEffect } from "react";
 
 const taskFormSchema = z.object({
   name: z.string().min(1, "Task name is required."),
   startTime: z.string().refine((val) => {
-    // Check if the string can be parsed into a valid date
-    // Appending 'Z' for validation purposes if user input is intended as UTC
     return !isNaN(Date.parse(val + 'Z')) || !isNaN(Date.parse(val));
   }, {
     message: "Invalid start time format. Please ensure it's a complete date and time.",
   }),
   duration: z.coerce.number().min(1, "Duration must be at least 1 minute."),
-  type: z.enum(TASK_TYPE_OPTIONS.map(opt => opt.value) as [TaskType, ...TaskType[]]),
+  type: z.enum(TASK_TYPES), // Use the raw TaskType values for Zod validation
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
@@ -56,10 +56,9 @@ interface TaskFormProps {
   initialTask?: Task | null;
 }
 
-// Helper to get YYYY-MM-DDTHH:MM string from a Date object, using its UTC components
 const getUtcDateTimeLocalString = (date: Date): string => {
   const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const day = String(date.getUTCDate()).padStart(2, '0');
   const hours = String(date.getUTCHours()).padStart(2, '0');
   const minutes = String(date.getUTCMinutes()).padStart(2, '0');
@@ -67,27 +66,31 @@ const getUtcDateTimeLocalString = (date: Date): string => {
 };
 
 export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFormProps) {
+  const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Get configured task types
+
   const defaultInitialUtcTimeForInput = getUtcDateTimeLocalString(new Date());
+  const defaultTaskType = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: initialTask
       ? {
           name: initialTask.name,
-          startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)), // Display existing UTC time
+          startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           duration: initialTask.duration,
           type: initialTask.type,
         }
       : {
           name: "",
-          startTime: defaultInitialUtcTimeForInput, // Default to current UTC time
+          startTime: defaultInitialUtcTimeForInput,
           duration: 30,
-          type: "work",
+          type: defaultTaskType,
         },
   });
 
   useEffect(() => {
-    if (isOpen) { 
+    if (isOpen) {
+      const defaultTypeForNew = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
       if (initialTask) {
         form.reset({
           name: initialTask.name,
@@ -98,26 +101,26 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       } else {
         form.reset({
           name: "",
-          startTime: getUtcDateTimeLocalString(new Date()), // Default to current UTC time on open
+          startTime: getUtcDateTimeLocalString(new Date()),
           duration: 30,
-          type: "work",
+          type: defaultTypeForNew,
         });
       }
     }
-  }, [initialTask, form, isOpen]);
+  }, [initialTask, form, isOpen, effectiveTaskTypeOptions]);
 
 
   const handleSubmit = (values: TaskFormValues) => {
-    const taskTypeDetails = getTaskTypeDetails(values.type);
+    const selectedTaskTypeDetails = getTaskTypeDetails(values.type, effectiveTaskTypeOptions);
+    
     const task: Task = {
       id: initialTask?.id || crypto.randomUUID(),
       name: values.name,
-      // Input 'values.startTime' is YYYY-MM-DDTHH:mm, treat as UTC by appending 'Z'
       startTime: new Date(values.startTime + 'Z').toISOString(),
       duration: values.duration,
       type: values.type,
-      preActionDuration: taskTypeDetails?.preActionDuration || 0,
-      postActionDuration: taskTypeDetails?.postActionDuration || 0,
+      preActionDuration: selectedTaskTypeDetails?.preActionDuration || 0,
+      postActionDuration: selectedTaskTypeDetails?.postActionDuration || 0,
       isCompleted: initialTask?.isCompleted || false,
     };
     onSubmit(task);
@@ -186,7 +189,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {TASK_TYPE_OPTIONS.map((option) => (
+                      {effectiveTaskTypeOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           <div className="flex items-center">
                             <option.icon className="mr-2 h-4 w-4" />

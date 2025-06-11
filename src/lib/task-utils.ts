@@ -1,8 +1,9 @@
 
-import type { TaskType, TaskTypeOption } from '@/types';
+import type { TaskType, TaskTypeOption, UserTaskTypesConfig, UserEditableTaskTypeFields } from '@/types';
 import { Briefcase, User, ShoppingCart, CalendarDays, type LucideIcon } from 'lucide-react';
 
-export const TASK_TYPE_OPTIONS: TaskTypeOption[] = [
+// Base default definitions for task types
+export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
   {
     value: "work",
     label: "Work",
@@ -19,7 +20,9 @@ export const TASK_TYPE_OPTIONS: TaskTypeOption[] = [
     icon: User,
     color: "bg-purple-500",
     preActionDuration: 0,
+    preActionLabel: "",
     postActionDuration: 0,
+    postActionLabel: "",
   },
   {
     value: "errands",
@@ -39,11 +42,29 @@ export const TASK_TYPE_OPTIONS: TaskTypeOption[] = [
     preActionDuration: 15,
     preActionLabel: "Travel & Check-in",
     postActionDuration: 0,
+    postActionLabel: "",
   },
 ];
 
-export function getTaskTypeDetails(type: TaskType): TaskTypeOption | undefined {
-  return TASK_TYPE_OPTIONS.find(option => option.value === type);
+// Applies user configurations to the default task types
+export function getEffectiveTaskTypeOptions(
+  userConfig: UserTaskTypesConfig
+): TaskTypeOption[] {
+  return DEFAULT_TASK_TYPE_OPTIONS.map(defaultOption => {
+    const userOverrides = userConfig[defaultOption.value];
+    if (userOverrides) {
+      return {
+        ...defaultOption,
+        ...userOverrides,
+      };
+    }
+    return defaultOption;
+  });
+}
+
+// Gets the details for a specific task type from a list of effective options
+export function getTaskTypeDetails(type: TaskType, effectiveOptions: readonly TaskTypeOption[]): TaskTypeOption | undefined {
+  return effectiveOptions.find(option => option.value === type);
 }
 
 export function formatTaskTime(isoString: string): string {
@@ -58,7 +79,6 @@ export function formatTaskTime(isoString: string): string {
 
 export function calculateEndTime(startTime: string, durationMinutes: number): string {
   const startDate = new Date(startTime);
-  // Ensure startTime is treated as UTC if it's not already fully qualified
   const startDateUtc = new Date(Date.UTC(
     startDate.getUTCFullYear(),
     startDate.getUTCMonth(),
@@ -72,13 +92,13 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
   return endDate.toISOString();
 }
 
-
+// These functions still rely on the 'value' to find the base default for icon/color
 export function getTaskTypeColorClass(type: TaskType): string {
-  const details = getTaskTypeDetails(type);
-  return details ? details.color : 'bg-gray-500'; // Default color
+  const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
+  return details ? details.color : 'bg-gray-500';
 }
 
 export function getTaskTypeIcon(type: TaskType): LucideIcon {
-  const details = getTaskTypeDetails(type);
-  return details ? details.icon : Briefcase; // Default icon
+  const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
+  return details ? details.icon : Briefcase;
 }

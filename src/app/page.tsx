@@ -8,22 +8,27 @@ import { Timeline } from "@/components/Timeline";
 import type { Task } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, Loader2 } from "lucide-react";
-import { DayScheduleChart } from "@/components/DayScheduleChart"; // Added import
+import { PlusCircle, Sun, Moon, Loader2, Settings } from "lucide-react"; // Added Settings
+import { DayScheduleChart } from "@/components/DayScheduleChart";
+import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal"; // Added import
+import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig"; // Added import
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false); // Added state for settings modal
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { toast } = useToast();
   const [selectedDateForChart, setSelectedDateForChart] = useState(new Date());
 
+  // Initialize task type configurations. This hook also provides the effective options.
+  const { effectiveTaskTypeOptions } = useTaskTypeConfig();
+
 
   useEffect(() => {
     setIsMounted(true);
-    // Set selectedDateForChart to today in UTC
     const today = new Date();
     setSelectedDateForChart(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())));
 
@@ -107,12 +112,12 @@ export default function HomePage() {
 
   const openEditModal = (task: Task) => {
     setEditingTask(task);
-    setIsModalOpen(true);
+    setIsTaskFormModalOpen(true);
   };
 
   const openAddModal = () => {
     setEditingTask(null);
-    setIsModalOpen(true);
+    setIsTaskFormModalOpen(true);
   };
   
   if (!isMounted) {
@@ -130,6 +135,9 @@ export default function HomePage() {
           TimeFlow
         </h1>
         <div className="flex items-center space-x-2 sm:space-x-4">
+           <Button variant="outline" size="icon" onClick={() => setIsSettingsModalOpen(true)} aria-label="Configure Task Types">
+            <Settings className="h-[1.2rem] w-[1.2rem]" />
+          </Button>
           <Button variant="outline" size="icon" onClick={toggleDarkMode} aria-label="Toggle dark mode">
             {isDarkMode ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
           </Button>
@@ -151,16 +159,20 @@ export default function HomePage() {
         </section>
         
         <section>
-          {/* We can add controls here later to change selectedDateForChart */}
           <DayScheduleChart tasks={tasks} selectedDate={selectedDateForChart} />
         </section>
       </main>
 
       <TaskForm
-        isOpen={isModalOpen}
-        onOpenChange={setIsModalOpen}
+        isOpen={isTaskFormModalOpen}
+        onOpenChange={setIsTaskFormModalOpen}
         onSubmit={editingTask ? handleEditTask : handleAddTask}
         initialTask={editingTask}
+      />
+
+      <TaskTypeSettingsModal
+        isOpen={isSettingsModalOpen}
+        onOpenChange={setIsSettingsModalOpen}
       />
       
       <footer className="mt-8 pt-4 text-center text-sm text-muted-foreground border-t border-border">
@@ -169,4 +181,3 @@ export default function HomePage() {
     </div>
   );
 }
-

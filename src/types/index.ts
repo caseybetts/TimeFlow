@@ -9,19 +9,32 @@ export interface Task {
   name: string;
   startTime: string; // ISO string, represents start of the CORE task in UTC
   duration: number; // in minutes, for the CORE task
-  type: TaskType;
-  preActionDuration: number; // in minutes
-  postActionDuration: number; // in minutes
+  type: TaskType; // This will be the 'value' from TaskTypeOption
+  preActionDuration: number; // in minutes, potentially from configured type
+  postActionDuration: number; // in minutes, potentially from configured type
   isCompleted?: boolean;
 }
 
+// Represents the full definition of a task type, including non-configurable parts
 export interface TaskTypeOption {
-  value: TaskType;
+  value: TaskType; // Fixed identifier (e.g., "work")
+  label: string; // User-configurable display name
+  icon: LucideIcon; // Fixed icon
+  color: string; // Fixed Tailwind color class
+  preActionDuration: number; // User-configurable default
+  preActionLabel?: string; // User-configurable
+  postActionDuration: number; // User-configurable default
+  postActionLabel?: string; // User-configurable
+}
+
+// Represents the fields a user can configure for a task type
+export interface UserEditableTaskTypeFields {
   label: string;
-  icon: LucideIcon;
-  color: string; // Tailwind color class or hex
-  preActionDuration: number; // minutes
+  preActionDuration: number;
   preActionLabel?: string;
-  postActionDuration: number; // minutes
+  postActionDuration: number;
   postActionLabel?: string;
 }
+
+// Structure for storing user configurations in localStorage
+export type UserTaskTypesConfig = Partial<Record<TaskType, UserEditableTaskTypeFields>>;

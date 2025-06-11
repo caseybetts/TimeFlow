@@ -9,12 +9,13 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Edit3, Trash2, Clock, AlertTriangle } from "lucide-react";
 import {
-  getTaskTypeColorClass,
-  getTaskTypeIcon,
+  getTaskTypeColorClass, // This will use default color based on 'value'
+  getTaskTypeIcon,       // This will use default icon based on 'value'
   formatTaskTime,
   calculateEndTime,
-  getTaskTypeDetails,
+  getTaskTypeDetails,    // This will use effective options
 } from "@/lib/task-utils";
+import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig"; // Import the hook
 import { cn } from "@/lib/utils";
 
 interface TaskItemProps {
@@ -25,20 +26,22 @@ interface TaskItemProps {
 }
 
 export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemProps) {
-  const Icon = getTaskTypeIcon(task.type);
+  const { effectiveTaskTypeOptions } = useTaskTypeConfig();
+  
+  // Icon and Color are based on the fixed 'value' of the task type
+  const Icon = getTaskTypeIcon(task.type); 
   const colorClass = getTaskTypeColorClass(task.type);
-  const taskTypeDetails = getTaskTypeDetails(task.type);
 
-  // Core task start time is task.startTime (already UTC)
+  // Details like label, pre/post action labels come from effective (user-configured) options
+  const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
+
   const coreTaskStartTimeStr = task.startTime;
   const coreTaskEndTimeStr = calculateEndTime(coreTaskStartTimeStr, task.duration);
 
-  // Pre-action times (if preActionDuration > 0)
   const preActionStartTimeStr = task.preActionDuration > 0
     ? calculateEndTime(coreTaskStartTimeStr, -task.preActionDuration)
     : "";
 
-  // Post-action times (if postActionDuration > 0)
   const postActionEndTimeStr = task.postActionDuration > 0
     ? calculateEndTime(coreTaskEndTimeStr, task.postActionDuration)
     : "";
@@ -53,6 +56,7 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
   const overallStartTimeForOverdueCheck = task.preActionDuration > 0 ? preActionStartTimeStr : coreTaskStartTimeStr;
   const isOverdue = new Date(overallStartTimeForOverdueCheck) < new Date() && !task.isCompleted;
 
+  const taskDisplayLabel = taskTypeDetails?.label || task.type; // Fallback to task.type if somehow not found
 
   return (
     <Card className={cn("mb-4 shadow-lg transition-all hover:shadow-xl", task.isCompleted ? "opacity-60" : "", isOverdue ? "border-destructive" : "")}>
@@ -64,7 +68,7 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
             </div>
             <div>
               <CardTitle className={cn("text-lg font-headline", task.isCompleted ? "line-through text-muted-foreground" : "")}>
-                {task.name}
+                {task.name} <span className="text-sm font-normal text-muted-foreground">({taskDisplayLabel})</span>
               </CardTitle>
               <CardDescription className="text-xs">
                 {dateInUTC} (UTC)

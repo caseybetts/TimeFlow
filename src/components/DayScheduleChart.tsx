@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Task, TaskType } from "@/types";
+import type { Task, TaskType, TaskTypeOption } from "@/types";
 import {
   Bar,
   BarChart,
@@ -21,50 +21,36 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
-import { TASK_TYPE_OPTIONS, formatTaskTime, getTaskTypeDetails } from "@/lib/task-utils";
+import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
+import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig"; // Import hook
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface DayScheduleChartProps {
   tasks: Task[];
-  selectedDate: Date; // Represents the UTC date to display
+  selectedDate: Date;
 }
 
 interface ProcessedChartDataPoint {
-  id: string; // Unique ID for Y-axis dataKey (task.id)
-  taskNameForAxis: string; // Task Name for Y-axis tick display
-  timeRange: [number, number]; // [startMinuteOfDay, endMinuteOfDay]
-  fillColorKey: TaskType;
+  id: string;
+  taskNameForAxis: string;
+  timeRange: [number, number];
+  fillColorKey: TaskType; // This will be the 'value' of the task type
   originalTask: Task;
   tooltipLabel: string;
 }
 
-const taskTypeToChartKey = (taskType: TaskType): string => {
-  return taskType.toLowerCase().replace(/\s+/g, '');
+// Maps the fixed 'value' of a task type to a chart key (e.g., "work" -> "work")
+const taskValueToChartKey = (taskValue: TaskType): string => {
+  return taskValue.toLowerCase().replace(/\s+/g, '');
 };
 
-const chartConfigBase: ChartConfig = TASK_TYPE_OPTIONS.reduce((acc, option) => {
-  const key = taskTypeToChartKey(option.value);
-  let color = "hsl(var(--muted))"; // Default color
-  // Simple mapping, can be improved or made more robust
-  if (option.value === "work") color = "hsl(var(--chart-1))";
-  else if (option.value === "personal") color = "hsl(var(--chart-2))";
-  else if (option.value === "errands") color = "hsl(var(--chart-3))";
-  else if (option.value === "appointment") color = "hsl(var(--chart-4))";
-  
-  acc[key] = {
-    label: option.label,
-    color: color,
-    icon: option.icon,
-  };
-  return acc;
-}, {} as ChartConfig);
-
-
 const CustomTooltip = ({ active, payload, label }: any) => {
+  const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Use hook for labels
   if (active && payload && payload.length) {
     const data = payload[0].payload as ProcessedChartDataPoint;
     const task = data.originalTask;
-    const taskTypeDetails = getTaskTypeDetails(task.type);
+    // Get details (like configured label) using effective options
+    const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
 
     const coreStartTime = new Date(task.startTime);
     const effectiveStartTime = new Date(coreStartTime.getTime() - task.preActionDuration * 60000);
@@ -74,7 +60,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return (
       <ChartTooltipContent
         className="w-[280px] bg-background"
-        label={ <div className="font-bold">{task.name} ({taskTypeDetails?.label})</div> }
+        label={ <div className="font-bold">{task.name} ({taskTypeDetails?.label || task.type})</div> }
         content={
           <div className="text-sm space-y-1">
             {task.preActionDuration > 0 && (
@@ -96,10 +82,36 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps) {
   const [isClient, setIsClient] = useState(false);
+  const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Get effective options for labels
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Chart config now uses effective labels but fixed icons/colors from defaults
+  const chartConfig = useMemo(() => {
+    return effectiveTaskTypeOptions.reduce((acc, option) => {
+      const key = taskValueToChartKey(option.value);
+      const defaultOption = DEFAULT_TASK_TYPE_OPTIONS.find(defOpt => defOpt.value === option.value);
+      let color = "hsl(var(--muted))"; // Default color
+
+      // Determine color based on the fixed 'value' using a simple mapping from defaults
+      if (defaultOption) {
+        if (option.value === "work") color = "hsl(var(--chart-1))";
+        else if (option.value === "personal") color = "hsl(var(--chart-2))";
+        else if (option.value === "errands") color = "hsl(var(--chart-3))";
+        else if (option.value === "appointment") color = "hsl(var(--chart-4))";
+      }
+      
+      acc[key] = {
+        label: option.label, // Use user-configured label
+        color: color,
+        icon: defaultOption?.icon, // Use default icon
+      };
+      return acc;
+    }, {} as ChartConfig);
+  }, [effectiveTaskTypeOptions]);
+
 
   const chartData = useMemo(() => {
     const dayStart = new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate(), 0, 0, 0, 0));
@@ -118,7 +130,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         return effectiveStartTimeA - effectiveStartTimeB;
     });
 
-    return tasksForDay.map((task, index) => {
+    return tasksForDay.map((task) => {
       const coreTaskStartTime = new Date(task.startTime);
       const taskEffectiveStart = new Date(coreTaskStartTime.getTime() - task.preActionDuration * 60000);
       const taskEffectiveEnd = new Date(coreTaskStartTime.getTime() + (task.duration + task.postActionDuration) * 60000);
@@ -126,16 +138,15 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       const startMinutesOnDay = Math.max(0, (taskEffectiveStart.getTime() - dayStart.getTime()) / 60000);
       const endMinutesOnDay = Math.min(1440, (taskEffectiveEnd.getTime() - dayStart.getTime()) / 60000);
       
-      // Ensure bar is visible if it's within the day
       if (startMinutesOnDay >= 1440 || endMinutesOnDay <= 0 || startMinutesOnDay >= endMinutesOnDay) {
         return null; 
       }
       
       return {
         id: task.id,
-        taskNameForAxis: `${task.name.substring(0,25)}${task.name.length > 25 ? '...' : ''}`, // For Y-axis display
+        taskNameForAxis: `${task.name.substring(0,25)}${task.name.length > 25 ? '...' : ''}`,
         timeRange: [startMinutesOnDay, endMinutesOnDay] as [number, number],
-        fillColorKey: task.type,
+        fillColorKey: task.type, // This is the 'value' (e.g., "work")
         originalTask: task,
         tooltipLabel: task.name,
       };
@@ -145,12 +156,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   if (!isClient) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Daily Schedule Graph</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[400px] flex items-center justify-center text-muted-foreground">
-          Loading chart...
-        </CardContent>
+        <CardHeader><CardTitle>Daily Schedule Graph</CardTitle></CardHeader>
+        <CardContent className="h-[400px] flex items-center justify-center text-muted-foreground">Loading chart...</CardContent>
       </Card>
     );
   }
@@ -158,9 +165,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   if (chartData.length === 0) {
      return (
       <Card>
-        <CardHeader>
-          <CardTitle>Daily Schedule Graph</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Daily Schedule Graph</CardTitle></CardHeader>
         <CardContent className="h-[400px] flex items-center justify-center">
           <p className="text-muted-foreground">No tasks scheduled for {selectedDate.toLocaleDateString('en-CA', { timeZone: 'UTC' })}.</p>
         </CardContent>
@@ -168,7 +173,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     );
   }
 
-  const yAxisWidth = Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40; // Estimate width
+  const yAxisWidth = Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40;
 
   return (
     <Card>
@@ -176,7 +181,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         <CardTitle>Daily Schedule Graph - {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} (UTC)</CardTitle>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfigBase} className="min-h-[200px] h-[calc(40px*var(--visible-tasks,10)+100px)] max-h-[800px] w-full" style={{ '--visible-tasks': chartData.length } as React.CSSProperties}>
+        <ChartContainer config={chartConfig} className="min-h-[200px] h-[calc(40px*var(--visible-tasks,10)+100px)] max-h-[800px] w-full" style={{ '--visible-tasks': chartData.length } as React.CSSProperties}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               layout="vertical"
@@ -187,21 +192,17 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
               <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
               <XAxis
                 type="number"
-                domain={[0, 1440]} // 24 hours * 60 minutes
-                ticks={[0, 180, 360, 540, 720, 900, 1080, 1260, 1440]} // Every 3 hours
-                tickFormatter={(value) => {
-                  const hours = Math.floor(value / 60);
-                  const minutes = value % 60;
-                  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-                }}
+                domain={[0, 1440]}
+                ticks={[0, 180, 360, 540, 720, 900, 1080, 1260, 1440]}
+                tickFormatter={(value) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`}
                 label={{ value: "Time (UTC)", position: "insideBottom", offset: -10, dy: 10 }}
               />
               <YAxis
                 type="category"
-                dataKey="id" // Use unique task ID for dataKey
+                dataKey="id"
                 tickFormatter={(tick) => chartData.find(d => d.id === tick)?.taskNameForAxis || ''}
                 width={yAxisWidth}
-                interval={0} // Show all ticks
+                interval={0}
               />
               <Tooltip
                 cursor={{ fill: 'hsla(var(--muted), 0.5)' }}
@@ -210,7 +211,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
               <Legend content={<ChartLegendContent />} />
               <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
                 {chartData.map((entry) => (
-                  <Cell key={`cell-${entry.id}`} fill={`var(--color-${taskTypeToChartKey(entry.fillColorKey)})`} />
+                  // Use taskValueToChartKey to ensure we reference the correct key in chartConfig
+                  <Cell key={`cell-${entry.id}`} fill={`var(--color-${taskValueToChartKey(entry.fillColorKey)})`} />
                 ))}
               </Bar>
             </BarChart>
