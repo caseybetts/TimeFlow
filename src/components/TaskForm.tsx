@@ -38,7 +38,8 @@ const taskFormSchema = z.object({
   name: z.string().min(1, "Task name is required."),
   startTime: z.string().refine((val) => {
     // Check if the string can be parsed into a valid date
-    return !isNaN(Date.parse(val));
+    // Appending 'Z' for validation purposes if user input is intended as UTC
+    return !isNaN(Date.parse(val + 'Z')) || !isNaN(Date.parse(val));
   }, {
     message: "Invalid start time format. Please ensure it's a complete date and time.",
   }),
@@ -55,45 +56,49 @@ interface TaskFormProps {
   initialTask?: Task | null;
 }
 
-export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFormProps) {
-  const defaultStartTime = new Date();
-  // Adjust to UTC for default display string, then format for datetime-local
-  const defaultStartTimeForInput = new Date(defaultStartTime.valueOf() - defaultStartTime.getTimezoneOffset() * 60000).toISOString().substring(0, 16);
+// Helper to get YYYY-MM-DDTHH:MM string from a Date object, using its UTC components
+const getUtcDateTimeLocalString = (date: Date): string => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
+export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFormProps) {
+  const defaultInitialUtcTimeForInput = getUtcDateTimeLocalString(new Date());
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: initialTask
       ? {
           name: initialTask.name,
-          // When editing, convert stored UTC time back to local for datetime-local input
-          startTime: new Date(new Date(initialTask.startTime).valueOf() - new Date().getTimezoneOffset() * 60000).toISOString().substring(0, 16),
+          startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)), // Display existing UTC time
           duration: initialTask.duration,
           type: initialTask.type,
         }
       : {
           name: "",
-          startTime: defaultStartTimeForInput,
+          startTime: defaultInitialUtcTimeForInput, // Default to current UTC time
           duration: 30,
           type: "work",
         },
   });
 
   useEffect(() => {
-    if (isOpen) { // Only reset form when dialog opens
+    if (isOpen) { 
       if (initialTask) {
         form.reset({
           name: initialTask.name,
-          startTime: new Date(new Date(initialTask.startTime).valueOf() - new Date().getTimezoneOffset() * 60000).toISOString().substring(0, 16),
+          startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           duration: initialTask.duration,
           type: initialTask.type,
         });
       } else {
-        const now = new Date();
-        const localDateTimeString = new Date(now.valueOf() - now.getTimezoneOffset() * 60000).toISOString().substring(0,16);
         form.reset({
           name: "",
-          startTime: localDateTimeString,
+          startTime: getUtcDateTimeLocalString(new Date()), // Default to current UTC time on open
           duration: 30,
           type: "work",
         });
@@ -107,8 +112,8 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
     const task: Task = {
       id: initialTask?.id || crypto.randomUUID(),
       name: values.name,
-      // Convert the local datetime-local string to a UTC ISO string
-      startTime: new Date(values.startTime).toISOString(),
+      // Input 'values.startTime' is YYYY-MM-DDTHH:mm, treat as UTC by appending 'Z'
+      startTime: new Date(values.startTime + 'Z').toISOString(),
       duration: values.duration,
       type: values.type,
       preActionDuration: taskTypeDetails?.preActionDuration || 0,
@@ -147,7 +152,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
               name="startTime"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Start Time (Your Local Time)</FormLabel>
+                  <FormLabel>Start Time (UTC)</FormLabel>
                   <FormControl>
                     <Input type="datetime-local" {...field} />
                   </FormControl>
