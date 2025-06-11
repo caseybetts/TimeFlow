@@ -4,12 +4,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { TaskForm } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
-import { OptimizeButton } from "@/components/OptimizeButton";
 import type { Task } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Sun, Moon, Loader2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
@@ -109,32 +107,6 @@ export default function HomePage() {
     setEditingTask(null);
     setIsModalOpen(true);
   };
-
-  const handleApplyOptimization = (optimizedTaskIds: string[]) => {
-    const optimizedTasks: Task[] = [];
-    const unoptimizedTasks: Task[] = [];
-
-    const taskMap = new Map(tasks.map(task => [task.id, task]));
-
-    optimizedTaskIds.forEach(id => {
-      const task = taskMap.get(id);
-      if (task) {
-        optimizedTasks.push(task);
-        taskMap.delete(id);
-      }
-    });
-    
-    // Add any tasks not in the optimized list (e.g. newly added during optimization)
-    // or tasks that the AI decided not to include in the optimized order.
-    // These will be appended to the end, maintaining their relative order.
-    tasks.forEach(task => {
-      if (taskMap.has(task.id)) {
-        unoptimizedTasks.push(task);
-      }
-    });
-
-    setTasks([...optimizedTasks, ...unoptimizedTasks]);
-  };
   
   if (!isMounted) {
     return (
@@ -154,7 +126,6 @@ export default function HomePage() {
           <Button variant="outline" size="icon" onClick={toggleDarkMode} aria-label="Toggle dark mode">
             {isDarkMode ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
           </Button>
-          <OptimizeButton tasks={tasks} onApplyOptimization={handleApplyOptimization} disabled={tasks.length === 0} />
           <Button onClick={openAddModal} className="bg-primary hover:bg-primary/90 text-primary-foreground">
             <PlusCircle className="mr-2 h-4 w-4" /> Add Task
           </Button>
