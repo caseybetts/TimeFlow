@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,6 +9,7 @@ import type { Task } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Sun, Moon, Loader2 } from "lucide-react";
+import { DayScheduleChart } from "@/components/DayScheduleChart"; // Added import
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
@@ -16,10 +18,15 @@ export default function HomePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { toast } = useToast();
+  const [selectedDateForChart, setSelectedDateForChart] = useState(new Date());
+
 
   useEffect(() => {
     setIsMounted(true);
-    // Check for saved theme preference or system preference
+    // Set selectedDateForChart to today in UTC
+    const today = new Date();
+    setSelectedDateForChart(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())));
+
     const savedTheme = localStorage.getItem('timeflow-theme');
     if (savedTheme) {
       setIsDarkMode(savedTheme === 'dark');
@@ -132,13 +139,21 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="flex-grow">
-        <Timeline
-          tasks={tasks}
-          onEditTask={openEditModal}
-          onDeleteTask={handleDeleteTask}
-          onToggleComplete={handleToggleComplete}
-        />
+      <main className="flex-grow space-y-8">
+        <section>
+          <h2 className="text-2xl font-headline font-semibold text-foreground mb-4">Task List</h2>
+          <Timeline
+            tasks={tasks}
+            onEditTask={openEditModal}
+            onDeleteTask={handleDeleteTask}
+            onToggleComplete={handleToggleComplete}
+          />
+        </section>
+        
+        <section>
+          {/* We can add controls here later to change selectedDateForChart */}
+          <DayScheduleChart tasks={tasks} selectedDate={selectedDateForChart} />
+        </section>
       </main>
 
       <TaskForm
@@ -154,3 +169,4 @@ export default function HomePage() {
     </div>
   );
 }
+
