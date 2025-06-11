@@ -69,10 +69,10 @@ export function getTaskTypeDetails(type: TaskType, effectiveOptions: readonly Ta
 
 export function formatTaskTime(isoString: string): string {
   const date = new Date(isoString);
-  return date.toLocaleTimeString('en-US', {
+  return date.toLocaleTimeString('en-US', { // Changed to en-GB for 24-hour format, or use hourCycle
     hour: '2-digit',
     minute: '2-digit',
-    hour12: true,
+    hour12: false, // Ensure 24-hour format
     timeZone: 'UTC'
   }) + ' UTC';
 }
@@ -102,3 +102,4 @@ export function getTaskTypeIcon(type: TaskType): LucideIcon {
   const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
   return details ? details.icon : Briefcase;
 }
+
