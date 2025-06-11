@@ -136,7 +136,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       acc[key] = {
         label: option.label,
         color: color,
-        icon: defaultOption?.icon, // Keep icon for potential use in legend if ChartLegendContent is customized
+        icon: defaultOption?.icon,
       };
       return acc;
     }, {} as ChartConfig);
@@ -182,7 +182,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         id: task.id,
         taskNameForAxis: `${task.name.substring(0,25)}${task.name.length > 25 ? '...' : ''}`,
         timeRange: [startMinutesOnDay, endMinutesOnDay] as [number, number],
-        fillColorKey: task.type, // Store the original task type value
+        fillColorKey: task.type, 
         originalTask: task,
         tooltipLabel: task.name,
       };
