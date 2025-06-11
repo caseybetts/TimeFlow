@@ -126,12 +126,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       const defaultOption = DEFAULT_TASK_TYPE_OPTIONS.find(defOpt => defOpt.value === option.value);
       let color = "hsl(var(--muted))"; 
 
-      // Assign specific chart colors based on task type value
       if (option.value === "work") color = "hsl(var(--chart-1))";
       else if (option.value === "personal") color = "hsl(var(--chart-2))";
       else if (option.value === "errands") color = "hsl(var(--chart-3))";
       else if (option.value === "appointment") color = "hsl(var(--chart-4))";
-      // Add more else if for other task types if they exist and you have more chart colors
       
       acc[key] = {
         label: option.label,
@@ -272,9 +270,14 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
               <Legend content={<ChartLegendContent />} />
               {chartData.length > 0 && (
                 <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
-                  {chartData.map((entry) => (
-                    <Cell key={`cell-${entry.id}`} fill={`var(--color-${taskValueToChartKey(entry.fillColorKey)})`} />
-                  ))}
+                  {chartData.map((entry) => {
+                    const cellColorKey = taskValueToChartKey(entry.fillColorKey);
+                    // Directly use the color defined in chartConfig for the Cell's fill
+                    const colorForCell = chartConfig[cellColorKey]?.color || "hsl(var(--muted))"; 
+                    return (
+                      <Cell key={`cell-${entry.id}`} fill={colorForCell} />
+                    );
+                  })}
                 </Bar>
               )}
                {currentTimeLinePosition !== null && (
