@@ -47,3 +47,18 @@ export interface SpreadsheetTaskRow {
   duration: string; // Store as string from input, convert to number on submit
   type: TaskType;
 }
+
+// For DayScheduleChart time range configuration
+export interface DayChartTimeRangeOption {
+  id: string; // Unique ID for the option
+  label: string; // e.g., "Work Hours", "Full Day"
+  startHour: number; // 0-23 (UTC)
+  startMinute: number; // 0-59
+  endHour: number; // 0-24 (UTC, 24 means end of day, i.e., 24:00 is next day 00:00)
+  endMinute: number; // 0-59
+}
+
+export type UserDayChartSettings = {
+  customTimeRanges: DayChartTimeRangeOption[]; // User-defined ranges
+  selectedTimeRangeId?: string; // ID of the currently selected/default range
+};
