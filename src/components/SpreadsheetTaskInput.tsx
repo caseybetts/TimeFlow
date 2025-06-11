@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
-import { PlusCircle, Trash2, SaveAll } from "lucide-react";
+import { PlusCircle, Trash2, SaveAll, Copy } from "lucide-react"; // Added Copy icon
 import { useToast } from "@/hooks/use-toast";
 
 interface SpreadsheetTaskInputProps {
@@ -60,6 +60,28 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
 
   const handleRemoveRow = (tempId: string) => {
     setRows(rows.filter((row) => row.tempId !== tempId));
+  };
+
+  const handleDuplicateRow = (tempId: string) => {
+    const rowIndex = rows.findIndex((row) => row.tempId === tempId);
+    if (rowIndex === -1) return;
+
+    const rowToDuplicate = rows[rowIndex];
+    const newRow: SpreadsheetTaskRow = {
+      ...rowToDuplicate,
+      tempId: crypto.randomUUID(),
+    };
+
+    const newRows = [
+      ...rows.slice(0, rowIndex + 1),
+      newRow,
+      ...rows.slice(rowIndex + 1),
+    ];
+    setRows(newRows);
+    toast({
+      title: "Row Duplicated",
+      description: `A copy of the task "${rowToDuplicate.name || 'Untitled Task'}" has been added below.`,
+    });
   };
 
   const handleInputChange = (
@@ -126,7 +148,6 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       onBatchAddTasks(tasksToAdd);
       setRows([]); // Clear rows after successful submission
     } else if (isValid && tasksToAdd.length === 0 && rows.length > 0) {
-        // This case might not be strictly necessary due to the initial rows.length check, but good for safety.
         toast({
             title: "No Valid Tasks",
             description: "No valid tasks were found to add. Please check your inputs.",
@@ -149,11 +170,11 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         <Table className="mb-4">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[30%]">Task Name</TableHead>
-              <TableHead className="w-[30%]">Start Time (UTC)</TableHead>
-              <TableHead className="w-[15%]">Duration (min)</TableHead>
-              <TableHead className="w-[20%]">Type</TableHead>
-              <TableHead className="w-[5%] text-right">Action</TableHead>
+              <TableHead className="w-[28%]">Task Name</TableHead>
+              <TableHead className="w-[28%]">Start Time (UTC)</TableHead>
+              <TableHead className="w-[12%]">Duration (min)</TableHead>
+              <TableHead className="w-[18%]">Type</TableHead>
+              <TableHead className="w-[14%] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -212,12 +233,22 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
                     </SelectContent>
                   </Select>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right space-x-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDuplicateRow(row.tempId)}
+                    aria-label="Duplicate row"
+                    title="Duplicate row"
+                  >
+                    <Copy className="h-4 w-4 text-blue-500" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleRemoveRow(row.tempId)}
                     aria-label="Remove row"
+                    title="Remove row"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
