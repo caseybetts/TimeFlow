@@ -19,7 +19,7 @@ import {
   type ChartConfig,
   ChartLegend,
   ChartLegendContent,
-  ChartTooltipContent,
+  ChartTooltipContent, // Ensure this is imported
 } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
 import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
@@ -93,7 +93,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   }, []);
 
   const xAxisDomain: [number, number] = useMemo(() => {
-    // selectedTimeRange start/endHour are already calculated UTC hours
+    // selectedTimeRange start/endHour are already calculated UTC hours relative to 00:00 of selectedDate
+    // e.g., Mids MST (23:00-07:30 local) might be startHour=30, endHour=38.5 (relative to selectedDate 00:00 UTC)
     const startMinutes = selectedTimeRange.startHour * 60 + selectedTimeRange.startMinute;
     const endMinutes = selectedTimeRange.endHour * 60 + selectedTimeRange.endMinute;
     return [startMinutes, endMinutes];
@@ -103,8 +104,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   useEffect(() => {
     const todayUTC = new Date(); // Current UTC time
     
+    // selectedDateEpochStart is 00:00:00 UTC of the day the chart is displaying
     const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
     const nowEpoch = todayUTC.getTime();
+    
     // currentMinutesRelativeToSelectedDayStart is minutes from 00:00 UTC of selectedDate to now (UTC)
     const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
     
@@ -113,18 +116,22 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     } else {
       setCurrentTimeLinePosition(null);
     }
-  }, [selectedDate, xAxisDomain, tasks]); // Re-evaluate when tasks change too, for dynamic updates
+  }, [selectedDate, xAxisDomain, tasks]);
 
 
   const chartConfig = useMemo(() => {
     return effectiveTaskTypeOptions.reduce((acc, option) => {
       const key = taskValueToChartKey(option.value);
-      let color = "hsl(var(--muted))";
+      let color = "hsl(var(--muted))"; // Default color
 
-      if (DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value)?.value === "work") color = "hsl(var(--chart-1))";
-      else if (DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value)?.value === "personal") color = "hsl(var(--chart-2))";
-      else if (DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value)?.value === "errands") color = "hsl(var(--chart-3))";
-      else if (DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value)?.value === "appointment") color = "hsl(var(--chart-4))";
+      // Assign colors based on default task types for consistency
+      const defaultType = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
+      if (defaultType) {
+          if (defaultType.value === "work") color = "hsl(var(--chart-1))";
+          else if (defaultType.value === "personal") color = "hsl(var(--chart-2))";
+          else if (defaultType.value === "errands") color = "hsl(var(--chart-3))";
+          else if (defaultType.value === "appointment") color = "hsl(var(--chart-4))";
+      }
       
       acc[key] = {
         label: option.label,
@@ -137,12 +144,13 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
 
   const chartData = useMemo(() => {
-    // xAxisDomain is in UTC minutes from 00:00 of selectedDate
+    // xAxisDomain is in UTC minutes from 00:00 of selectedDate (e.g., Mids: [1800, 2310])
     const viewWindowStartMinutesUTC = xAxisDomain[0];
     const viewWindowEndMinutesUTC = xAxisDomain[1];
 
     const selectedDateEpochStartMs = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
 
+    // These are absolute UTC millisecond timestamps for the view window boundaries
     const viewWindowStartMs = selectedDateEpochStartMs + viewWindowStartMinutesUTC * 60000;
     const viewWindowEndMs = selectedDateEpochStartMs + viewWindowEndMinutesUTC * 60000;
 
@@ -151,6 +159,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
       const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000;
       
+      // Standard interval overlap check
       return taskEffectiveStartMs < viewWindowEndMs && taskEffectiveEndMs > viewWindowStartMs;
     });
     
@@ -163,13 +172,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     return tasksInView.map((task) => {
       const taskCoreStartMs = new Date(task.startTime).getTime();
       const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
-      // const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000;
 
-      // Task's start/end minutes relative to 00:00 UTC of selectedDate. These are absolute UTC minute marks.
+      // taskStartMinutesRelativeToDay is the task's start in minutes from 00:00 UTC of `selectedDate`.
+      // This positions the bar correctly on the X-axis which uses the same relative minute scale.
       let taskStartMinutesRelativeToDay = (taskEffectiveStartMs - selectedDateEpochStartMs) / 60000;
-      // Ensure timeRange for Bar component is within the current XAxis domain [startUTC, endUTC]
-      // The values in timeRange are absolute UTC minutes from selectedDate 00:00 UTC.
-      // Recharts bar will plot these absolute values correctly against the xAxisDomain (which is also absolute UTC minutes).
       
       const totalEffectiveDurationMinutes = task.preActionDuration + task.duration + task.postActionDuration;
       let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + totalEffectiveDurationMinutes;
@@ -195,18 +201,14 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
   const xAxisTickFormatter = (value: number) => { // value is an absolute UTC minute from selectedDate 00:00 UTC
     const hourUTC = Math.floor(value / 60);
-    // Convert UTC hour to local hour for MST/MDT display
-    // localHour = (utcHour - utcOffsetFromUTC) modulo 24
-    // e.g., if UTC hour is 14 and offset is 7 (MST), localHour = (14 - 7) = 7 (07:00 MST)
-    // e.g., if UTC hour is 6 and offset is 7 (MST), localHour = (6 - 7 + 24) % 24 = 23 (23:00 MST previous day logically, but displayed as 23 on axis)
-    const localHour = (hourUTC - utcOffsetForDisplay + 2400) % 24; // Add large multiple of 24 to handle negative results before modulo
+    const localHour = (hourUTC - utcOffsetForDisplay + 2400) % 24; 
     const minute = value % 60;
     return `${String(localHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   };
 
   const localTimeZoneLabel = isDstActive ? 'MDT' : 'MST';
 
-  if (!isClient) {
+  if (!isClient) { // Keep the skeleton for initial load
     return (
       <Card>
         <CardHeader>
@@ -282,16 +284,16 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                   allowDecimals={false}
                   scale="time" 
                   interval="preserveStartEnd"
-                  minTickGap={30} // minTickGap might need adjustment based on range width
+                  minTickGap={30}
                 />
                 <YAxis
                   type="category"
-                  dataKey="id"
-                  tickFormatter={(tick) => chartData.find(d => d.id === tick)?.taskNameForAxis || ''}
+                  dataKey="id" // Use the unique task ID for the Y-axis dataKey
+                  tickFormatter={(tickValue) => chartData.find(d => d.id === tickValue)?.taskNameForAxis || ''}
                   width={yAxisWidth}
                   interval={0}
-                  domain={chartData.length > 0 ? undefined : ['No Tasks']}
-                  ticks={chartData.length > 0 ? undefined : []}
+                  domain={chartData.length > 0 ? undefined : ['No Tasks']} // Handle empty data for domain/ticks
+                  ticks={chartData.length > 0 ? chartData.map(d => d.id) : []} // Use actual task IDs for ticks
                 />
                 <Tooltip
                   cursor={{ fill: 'hsla(var(--muted), 0.5)' }}
@@ -311,11 +313,11 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 )}
                  {currentTimeLinePosition !== null && (
                   <ReferenceLine
-                    x={currentTimeLinePosition} // This value is absolute UTC minutes from selectedDate 00:00
+                    x={currentTimeLinePosition}
                     stroke="hsl(var(--destructive))"
                     strokeWidth={2}
                     strokeDasharray="8 4"
-                    ifOverflow="hidden" // Ensure it doesn't draw outside chart plot area
+                    ifOverflow="hidden"
                     label={{
                       value: "Now",
                       position: "insideTopRight",
@@ -335,3 +337,4 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
+
