@@ -53,66 +53,47 @@ const formatMinutesToTimeLocal = (totalMinutes: number): string => {
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
-  console.log("CustomTooltip called:", { active, payload, label }); // Added for debugging
-
-  const { effectiveTaskTypeOptions } = useTaskTypeConfig();
-
+  console.log("CustomTooltip called (simplified test):", { active, payload, label });
   if (active && payload && payload.length) {
-    if (!payload[0] || !payload[0].payload) {
-      console.error("CustomTooltip: payload[0] or payload[0].payload is undefined!", payload);
-      return (
-        <div className="p-2 bg-destructive text-destructive-foreground rounded-md shadow-lg">
-          Tooltip Error: Payload data missing.
-        </div>
-      );
-    }
-
-    const data = payload[0].payload as ProcessedChartDataPoint;
-
-    if (!data.originalTask) {
-      console.error("CustomTooltip: data.originalTask is undefined!", data);
-      return (
-        <div className="p-2 bg-destructive text-destructive-foreground rounded-md shadow-lg">
-          Tooltip Error: Original task data missing.
-        </div>
-      );
-    }
+    const data = payload[0].payload as ProcessedChartDataPoint; // Assuming payload[0].payload contains our ProcessedChartDataPoint
     
-    const task = data.originalTask;
-    const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
-    const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
+    if (!data) {
+        console.error("CustomTooltip (simplified): data (payload[0].payload) is undefined!", payload);
+        return (
+            <div style={{ backgroundColor: 'darkred', color: 'white', padding: '5px', border: '1px solid black', zIndex: 1000 }}>
+                Error: Payload data missing.
+            </div>
+        );
+    }
+    if (!data.originalTask) {
+        console.error("CustomTooltip (simplified): data.originalTask is undefined!", data);
+         return (
+            <div style={{ backgroundColor: 'darkred', color: 'white', padding: '5px', border: '1px solid black', zIndex: 1000 }}>
+                Error: Original task data missing. (Task name: {data.taskNameForAxis || 'Unknown'})
+            </div>
+        );
+    }
 
+    const task = data.originalTask;
+    const taskTypeDetails = getTaskTypeDetails(task.type, DEFAULT_TASK_TYPE_OPTIONS); // Use default as fallback if effective not available here
+    const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
     const coreStartTime = new Date(task.startTime);
     const formattedCoreStartTime = formatTaskTime(coreStartTime.toISOString());
-    const effectiveStartTime = new Date(coreStartTime.getTime() - task.preActionDuration * 60000);
-    const coreEndTime = new Date(coreStartTime.getTime() + task.duration * 60000); // task.duration is now 1
-    const effectiveEndTime = new Date(coreEndTime.getTime() + task.postActionDuration * 60000);
-
-    const tooltipLabelContent = (
-      <div className="font-bold">
-        {taskNameDisplay} ({taskTypeDetails?.label || task.type} / {task.spacecraft})
-        <br />
-        <span className="text-xs font-normal">Core Starts: {formattedCoreStartTime}</span>
-      </div>
-    );
 
     return (
-      <ChartTooltipContent
-        className="w-[300px] bg-background"
-        label={tooltipLabelContent}
-        content={
-          <div className="text-sm space-y-1">
-            {task.preActionDuration > 0 && (
-              <p>{taskTypeDetails?.preActionLabel || "Pre-Action"}: {formatTaskTime(effectiveStartTime.toISOString())} - {formatTaskTime(coreStartTime.toISOString())} ({task.preActionDuration} min)</p>
-            )}
-            <p>Core Task: {formatTaskTime(coreStartTime.toISOString())} - {formatTaskTime(coreEndTime.toISOString())} ({task.duration} min)</p>
-            {task.postActionDuration > 0 && (
-              <p>{taskTypeDetails?.postActionLabel || "Post-Action"}: {formatTaskTime(coreEndTime.toISOString())} - {formatTaskTime(effectiveEndTime.toISOString())} ({task.postActionDuration} min)</p>
-            )}
-            <p className="pt-1">Status: {task.isCompleted ? "Completed" : "Pending"}</p>
-          </div>
-        }
-      />
+      <div style={{ 
+          backgroundColor: 'white', 
+          border: '1px solid #ccc', 
+          padding: '10px', 
+          boxShadow: '2px 2px 5px rgba(0,0,0,0.1)',
+          zIndex: 1000 /* Ensure it's on top */
+        }}>
+        <p style={{ fontWeight: 'bold', margin: '0 0 5px 0' }}>{taskNameDisplay}</p>
+        <p style={{ margin: '0 0 5px 0' }}>Type: {taskTypeDetails?.label || task.type}</p>
+        <p style={{ margin: '0 0 5px 0' }}>Spacecraft: {task.spacecraft}</p>
+        <p style={{ margin: '0 0 5px 0' }}>Core Starts: {formattedCoreStartTime}</p>
+        <p style={{ margin: '0' }}>Pre: {task.preActionDuration}m, Core: {task.duration}m, Post: {task.postActionDuration}m</p>
+      </div>
     );
   }
   return null;
@@ -139,21 +120,18 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
 
   useEffect(() => {
-    const todayUTC = new Date(); // Current time in UTC
-    // Calculate start of selectedDate in UTC milliseconds
+    const todayUTC = new Date(); 
     const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
-    const nowEpoch = todayUTC.getTime(); // Current time in UTC milliseconds
+    const nowEpoch = todayUTC.getTime(); 
     
-    // Calculate current minutes relative to the START of the selectedDate (UTC)
     const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
     
-    // Check if current time falls within the current xAxisDomain (which is also in minutes relative to selectedDate start)
     if (currentMinutesRelativeToSelectedDayStart >= xAxisDomain[0] && currentMinutesRelativeToSelectedDayStart <= xAxisDomain[1]) {
       setCurrentTimeLinePosition(currentMinutesRelativeToSelectedDayStart);
     } else {
       setCurrentTimeLinePosition(null);
     }
-  }, [selectedDate, xAxisDomain, tasks]); // Re-run when selectedDate or viewWindow (xAxisDomain) changes
+  }, [selectedDate, xAxisDomain, tasks]); 
 
 
   const chartConfig = useMemo(() => {
@@ -177,18 +155,15 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     const viewWindowStartMinutesUTC = xAxisDomain[0];
     const viewWindowEndMinutesUTC = xAxisDomain[1];
     
-    // selectedDate is already UTC. Get its start in milliseconds.
     const selectedDateEpochStartMs = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
 
-    // Calculate absolute UTC millisecond boundaries for the view window
     const viewWindowStartMs = selectedDateEpochStartMs + viewWindowStartMinutesUTC * 60000;
     const viewWindowEndMs = selectedDateEpochStartMs + viewWindowEndMinutesUTC * 60000;
 
     const tasksInView = tasks.filter(task => {
-      const taskCoreStartMs = new Date(task.startTime).getTime(); // Already UTC
+      const taskCoreStartMs = new Date(task.startTime).getTime(); 
       const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
       const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000;
-      // Check if any part of the effective task duration overlaps with the view window
       return taskEffectiveStartMs < viewWindowEndMs && taskEffectiveEndMs > viewWindowStartMs;
     });
     
@@ -199,10 +174,9 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     });
 
     return tasksInView.map((task) => {
-      const taskCoreStartMs = new Date(task.startTime).getTime(); // Already UTC
+      const taskCoreStartMs = new Date(task.startTime).getTime(); 
       const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
       
-      // Calculate start minutes for the bar, relative to the selectedDate's 00:00 UTC
       let taskStartMinutesRelativeToDay = (taskEffectiveStartMs - selectedDateEpochStartMs) / 60000;
       
       const totalEffectiveDurationMinutes = task.preActionDuration + task.duration + task.postActionDuration;
@@ -217,7 +191,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         taskNameForAxis: taskNameForAxisDisplay,
         timeRange: [taskStartMinutesRelativeToDay, taskEndMinutesRelativeToDay] as [number, number],
         fillColorKey: task.type,
-        originalTask: task, // Pass the original task for the tooltip
+        originalTask: task, 
         tooltipLabel: taskNameDisplay,
       };
     }).filter(Boolean) as ProcessedChartDataPoint[];
@@ -226,7 +200,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80;
   
   const xAxisTickFormatter = (value: number) => { 
-    // Value is minutes from the start of selectedDate (UTC)
     const displayHourUTC = Math.floor(value / 60) % 24; 
     const minute = value % 60;
     return `${String(displayHourUTC).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -234,14 +207,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
   const handleSliderChange = (newRange: [number, number]) => {
     let [newStart, newEnd] = newRange;
-    // Ensure minimum window duration
     if (newEnd - newStart < MIN_WINDOW_DURATION_MINUTES) {
-      // Prioritize adjusting the one that moved if it maintains/creates min duration
-      // This logic can be complex; simplified: if newEnd moved, adjust newStart
-      // if newStart moved, adjust newEnd.
-      if (newEnd !== viewWindow[1]) { // If end thumb moved
+      if (newEnd !== viewWindow[1]) { 
         newStart = Math.max(MIN_SLIDER_MINUTES, newEnd - MIN_WINDOW_DURATION_MINUTES);
-      } else { // If start thumb moved (or both, though slider typically moves one)
+      } else { 
         newEnd = Math.min(MAX_SLIDER_MINUTES, newStart + MIN_WINDOW_DURATION_MINUTES);
       }
     }
@@ -258,7 +227,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             Times are displayed in UTC. Use slider to adjust view.
           </CardDescription>
           <div className="pt-4 space-y-2">
-            <div className="h-6 w-full bg-muted rounded animate-pulse" /> {/* Placeholder for slider */}
+            <div className="h-6 w-full bg-muted rounded animate-pulse" /> 
           </div>
         </CardHeader>
         <CardContent className="h-[400px] flex items-center justify-center text-muted-foreground">Loading chart...</CardContent>
@@ -281,8 +250,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             <Slider
               id="time-range-slider"
               min={MIN_SLIDER_MINUTES}
-              max={MAX_SLIDER_MINUTES} // Allows selecting up to 48 hours
-              step={15} // 15 minute increments
+              max={MAX_SLIDER_MINUTES} 
+              step={15} 
               value={viewWindow}
               onValueChange={handleSliderChange}
               className="w-full"
@@ -314,27 +283,27 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                   allowDecimals={false}
                   scale="time" 
                   interval="preserveStartEnd"
-                  minTickGap={30} // Min gap between ticks in pixels
+                  minTickGap={30} 
                 />
                 <YAxis
                   type="category"
                   dataKey="id" 
                   tickFormatter={(tickValue) => chartData.find(d => d.id === tickValue)?.taskNameForAxis || ''}
                   width={yAxisWidth}
-                  interval={0} // Show all task names if possible
-                  domain={chartData.length > 0 ? undefined : ['No Tasks']} // Handle empty data for domain
-                  ticks={chartData.length > 0 ? chartData.map(d => d.id) : []} // Explicitly pass ticks
+                  interval={0} 
+                  domain={chartData.length > 0 ? undefined : ['No Tasks']} 
+                  ticks={chartData.length > 0 ? chartData.map(d => d.id) : []} 
                 />
                 <Tooltip
                   cursor={{ fill: 'hsla(var(--muted), 0.5)' }}
                   content={<CustomTooltip />}
+                  wrapperStyle={{ zIndex: 1100 }} /* Added z-index to wrapper */
                 />
                 <Legend content={<ChartLegendContent />} />
                 {chartData.length > 0 && (
                   <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
                     {chartData.map((entry) => {
                       const cellColorKey = taskValueToChartKey(entry.fillColorKey);
-                      // Directly use the HSL string from chartConfig
                       const colorForCell = chartConfig[cellColorKey]?.color || "hsl(var(--muted))";
                       return (
                         <Cell key={`cell-${entry.id}`} fill={colorForCell} />
@@ -348,15 +317,15 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                     stroke="hsl(var(--destructive))"
                     strokeWidth={2}
                     strokeDasharray="8 4"
-                    ifOverflow="hidden" // Ensure line is clipped to chart area
+                    ifOverflow="hidden" 
                     label={{
                       value: "Now",
-                      position: "insideTopRight", // Position label relative to the line
+                      position: "insideTopRight", 
                       fill: "hsl(var(--destructive))",
                       fontSize: 12,
                       fontWeight: "bold",
-                      dy: -10, // Adjust vertical position
-                      dx: 10 // Adjust horizontal position
+                      dy: -10, 
+                      dx: 10 
                     }}
                   />
                 )}
@@ -369,3 +338,4 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   );
 }
 
+    
