@@ -19,7 +19,7 @@ import {
   type ChartConfig,
   ChartLegend,
   ChartLegendContent,
-  ChartTooltipContent, // Ensure this is imported
+  ChartTooltipContent,
 } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
 import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
@@ -54,8 +54,28 @@ const formatMinutesToTime = (totalMinutes: number): string => {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
+
   if (active && payload && payload.length) {
+    if (!payload[0] || !payload[0].payload) {
+      console.error("CustomTooltip: payload[0] or payload[0].payload is undefined!", payload);
+      return (
+        <div className="p-2 bg-destructive text-destructive-foreground rounded-md shadow-lg">
+          Tooltip Error: Payload data missing.
+        </div>
+      );
+    }
+
     const data = payload[0].payload as ProcessedChartDataPoint;
+
+    if (!data.originalTask) {
+      console.error("CustomTooltip: data.originalTask is undefined!", data);
+      return (
+        <div className="p-2 bg-destructive text-destructive-foreground rounded-md shadow-lg">
+          Tooltip Error: Original task data missing.
+        </div>
+      );
+    }
+    
     const task = data.originalTask;
     const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
     const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
@@ -127,7 +147,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     } else {
       setCurrentTimeLinePosition(null);
     }
-  }, [selectedDate, xAxisDomain, tasks]); // Added tasks to dependency array to re-evaluate if tasks change
+  }, [selectedDate, xAxisDomain, tasks]);
 
 
   const chartConfig = useMemo(() => {
@@ -136,12 +156,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       let color = "hsl(var(--muted))"; 
       const defaultType = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
       if (defaultType) {
-          // Assign colors based on chart theme variables
           if (defaultType.value === "work") color = "hsl(var(--chart-1))";
           else if (defaultType.value === "personal") color = "hsl(var(--chart-2))";
           else if (defaultType.value === "errands") color = "hsl(var(--chart-3))";
           else if (defaultType.value === "appointment") color = "hsl(var(--chart-4))";
-          // Add more else if for other types if needed, or a default fallback
       }
       acc[key] = { label: option.label, color: color, icon: defaultType?.icon };
       return acc;
@@ -202,9 +220,9 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const handleSliderChange = (newRange: [number, number]) => {
     let [newStart, newEnd] = newRange;
     if (newEnd - newStart < MIN_WINDOW_DURATION_MINUTES) {
-      if (newEnd !== viewWindow[1]) { // End thumb was moved
+      if (newEnd !== viewWindow[1]) {
         newStart = Math.max(MIN_SLIDER_MINUTES, newEnd - MIN_WINDOW_DURATION_MINUTES);
-      } else { // Start thumb was moved
+      } else {
         newEnd = Math.min(MAX_SLIDER_MINUTES, newStart + MIN_WINDOW_DURATION_MINUTES);
       }
     }
@@ -220,7 +238,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
             {' '}(Times shown in UTC)
           </CardDescription>
-          {/* Placeholder for slider layout */}
           <div className="pt-4 space-y-2">
             <div className="h-6 w-full bg-muted rounded animate-pulse" />
           </div>
@@ -246,7 +263,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
               id="time-range-slider"
               min={MIN_SLIDER_MINUTES}
               max={MAX_SLIDER_MINUTES}
-              step={15} // 15 minute increments
+              step={15}
               value={viewWindow}
               onValueChange={handleSliderChange}
               className="w-full"
@@ -331,3 +348,4 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
+
