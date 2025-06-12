@@ -5,15 +5,15 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { TaskForm } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
-import type { Task, SpreadsheetTaskRow } from "@/types"; // Added SpreadsheetTaskRow
+import type { Task, SpreadsheetTaskRow } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Sun, Moon, Loader2, Settings } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
-import { SpreadsheetTaskInput } from "@/components/SpreadsheetTaskInput"; // Added import
-import { getTaskTypeDetails } from "@/lib/task-utils"; // Added import
+import { SpreadsheetTaskInput } from "@/components/SpreadsheetTaskInput";
+import { getTaskTypeDetails } from "@/lib/task-utils";
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
@@ -114,7 +114,7 @@ export default function HomePage() {
     setTasks((prevTasks) =>
       prevTasks.map((task) => {
         if (task.id === taskId) {
-          taskName = task.name;
+          taskName = task.name || "Task";
           newCompletedState = !task.isCompleted;
           return { ...task, isCompleted: !task.isCompleted };
         }
@@ -169,6 +169,10 @@ export default function HomePage() {
       </header>
 
       <main className="flex-grow space-y-8">
+        <section>
+          <DayScheduleChart tasks={tasks} selectedDate={selectedDateForChart} />
+        </section>
+
         <SpreadsheetTaskInput onBatchAddTasks={handleBatchAddTasks} />
 
         <section>
@@ -179,10 +183,6 @@ export default function HomePage() {
             onDeleteTask={handleDeleteTask}
             onToggleComplete={handleToggleComplete}
           />
-        </section>
-        
-        <section>
-          <DayScheduleChart tasks={tasks} selectedDate={selectedDateForChart} />
         </section>
       </main>
 
