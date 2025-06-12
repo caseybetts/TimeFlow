@@ -89,10 +89,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           zIndex: 1000 /* Ensure it's on top */
         }}>
         <p style={{ fontWeight: 'bold', margin: '0 0 5px 0' }}>{taskNameDisplay}</p>
-        <p style={{ margin: '0 0 5px 0' }}>Type: {taskTypeDetails?.label || task.type}</p>
         <p style={{ margin: '0 0 5px 0' }}>Spacecraft: {task.spacecraft}</p>
-        <p style={{ margin: '0 0 5px 0' }}>Core Starts: {formattedCoreStartTime}</p>
-        <p style={{ margin: '0' }}>Pre: {task.preActionDuration}m, Core: {task.duration}m, Post: {task.postActionDuration}m</p>
+        <p style={{ margin: '0 0 5px 0' }}>Start: {formattedCoreStartTime}</p>
+        <p style={{ margin: '0' }}>Pre: {task.preActionDuration}m, Post: {task.postActionDuration}m</p>
       </div>
     );
   }
