@@ -4,19 +4,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { DayChartTimeRangeOption, UserDayChartSettings, BaseDayChartTimeRangeOption } from '@/types';
 
-const DAY_CHART_SETTINGS_KEY = 'timeflow-day-chart-settings-v2'; // Changed key due to structure change
+const DAY_CHART_SETTINGS_KEY = 'timeflow-day-chart-settings-v3'; // Changed key due to structure change
 
-const displayTime = (hour: number, minute: number): string => 
-  `${String(hour % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+const displayTimeLocal = (hour: number, minute: number): string => 
+  `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
-// Define the static base time ranges
+// Define the static base time ranges based on local MST shift times
 const STATIC_TIME_RANGES_BASE: Readonly<BaseDayChartTimeRangeOption[]> = [
-  { id: 'full_day', baseLabel: 'Full Day', startHour: 0, startMinute: 0, endHour: 24, endMinute: 0 },
-  { id: 'work_hours', baseLabel: 'Work Hours', startHour: 9, startMinute: 0, endHour: 17, endMinute: 0 },
-  { id: 'morning', baseLabel: 'Morning', startHour: 6, startMinute: 0, endHour: 12, endMinute: 0 },
-  { id: 'afternoon', baseLabel: 'Afternoon', startHour: 12, startMinute: 0, endHour: 18, endMinute: 0 },
-  { id: 'evening', baseLabel: 'Evening', startHour: 18, startMinute: 0, endHour: 24, endMinute: 0 }, // Covers up to midnight
-  { id: 'late_night_early_morning', baseLabel: 'Late Night/Early Morning', startHour: 22, startMinute: 0, endHour: 30, endMinute: 0 }, // 22:00 to 06:00 next day
+  { id: 'full_day_local', baseLabel: 'Full Day', localStartHour: 0, localStartMinute: 0, localEndHour: 24, localEndMinute: 0 }, // Represents 00:00 to 24:00 Local
+  { id: 'days_shift_local', baseLabel: 'Days Shift', localStartHour: 7, localStartMinute: 0, localEndHour: 15, localEndMinute: 30 },
+  { id: 'swings_shift_local', baseLabel: 'Swings Shift', localStartHour: 15, localStartMinute: 0, localEndHour: 23, localEndMinute: 30 },
+  { id: 'mids_shift_local', baseLabel: 'Mids Shift', localStartHour: 23, localStartMinute: 0, localEndHour: 7, localEndMinute: 30 }, // Spans midnight locally
 ];
 
 const DEFAULT_SELECTED_TIME_RANGE_ID = STATIC_TIME_RANGES_BASE[0].id;
@@ -79,22 +77,31 @@ export function useDayChartSettings(): {
   }, []);
 
   const allTimeRangeOptions = useMemo(() => {
-    const dstOffset = settings.isDstActive ? 1 : 0;
+    const utcOffset = settings.isDstActive ? 6 : 7; // MDT is UTC-6, MST is UTC-7. Add to local to get UTC.
+    const localTimeZoneLabel = settings.isDstActive ? 'MDT' : 'MST';
+
     return STATIC_TIME_RANGES_BASE.map(baseRange => {
-      const adjStartHour = baseRange.startHour + dstOffset;
-      const adjEndHour = baseRange.endHour + dstOffset;
+      let effectiveStartHourUTC = baseRange.localStartHour + utcOffset;
+      let effectiveEndHourUTC = baseRange.localEndHour + utcOffset;
+
+      // Adjust UTC end hour if the local range spans midnight or is a full 24-hour range ending at "24:00"
+      if (baseRange.localEndHour < baseRange.localStartHour) { // e.g. Mids 23:00 - 07:00
+        effectiveEndHourUTC += 24;
+      } else if (baseRange.localStartHour === 0 && baseRange.localEndHour === 24) { // Full Day 00:00 - 24:00
+        // effectiveEndHourUTC is already correct (e.g. 24 + offset)
+      } else if (baseRange.localEndHour === baseRange.localStartHour && baseRange.localStartHour !== 0) { // e.g. 08:00 - 08:00 (implies 24h)
+         effectiveEndHourUTC += 24;
+      }
       
-      let dynamicLabel = `${baseRange.baseLabel} (${displayTime(adjStartHour, baseRange.startMinute)} - ${displayTime(adjEndHour, baseRange.endMinute)}`;
-      if(settings.isDstActive) dynamicLabel += " DST";
-      dynamicLabel += ")";
+      const label = `${baseRange.baseLabel} (${displayTimeLocal(baseRange.localStartHour, baseRange.localStartMinute)} - ${displayTimeLocal(baseRange.localEndHour % 24, baseRange.localEndMinute)} ${localTimeZoneLabel})`;
 
       return {
         id: baseRange.id,
-        label: dynamicLabel,
-        startHour: adjStartHour,
-        startMinute: baseRange.startMinute,
-        endHour: adjEndHour,
-        endMinute: baseRange.endMinute,
+        label: label,
+        startHour: effectiveStartHourUTC,
+        startMinute: baseRange.localStartMinute,
+        endHour: effectiveEndHourUTC,
+        endMinute: baseRange.localEndMinute,
       };
     });
   }, [settings.isDstActive]);
