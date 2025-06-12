@@ -19,7 +19,7 @@ import {
   type ChartConfig,
   ChartLegend,
   ChartLegendContent,
-  ChartTooltipContent, // Added import
+  ChartTooltipContent,
 } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
 import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
@@ -30,13 +30,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface DayScheduleChartProps {
   tasks: Task[];
-  selectedDate: Date;
+  selectedDate: Date; // This is the primary day the chart is focused on (UTC)
 }
 
 interface ProcessedChartDataPoint {
   id: string;
   taskNameForAxis: string;
-  timeRange: [number, number];
+  timeRange: [number, number]; // Minutes relative to 00:00 of selectedDate
   fillColorKey: TaskType;
   originalTask: Task;
   tooltipLabel: string;
@@ -54,7 +54,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
     const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
 
-
     const coreStartTime = new Date(task.startTime);
     const effectiveStartTime = new Date(coreStartTime.getTime() - task.preActionDuration * 60000);
     const coreEndTime = new Date(coreStartTime.getTime() + task.duration * 60000);
@@ -62,7 +61,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
     return (
       <ChartTooltipContent
-        className="w-[300px] bg-background" // Increased width slightly
+        className="w-[300px] bg-background"
         label={ <div className="font-bold">{taskNameDisplay} ({taskTypeDetails?.label || task.type} / {task.spacecraft})</div> }
         content={
           <div className="text-sm space-y-1">
@@ -95,37 +94,33 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
   const xAxisDomain: [number, number] = useMemo(() => {
     const range = selectedTimeRange || DEFAULT_FULL_DAY_TIME_RANGE;
+    // These are absolute minutes in the potentially extended timeline (e.g. up to 48 hours worth of minutes)
     const startMinutes = range.startHour * 60 + range.startMinute;
     const endMinutes = range.endHour * 60 + range.endMinute;
-    return [startMinutes, Math.min(endMinutes, 1440)];
+    return [startMinutes, endMinutes];
   }, [selectedTimeRange]);
 
 
   useEffect(() => {
     const todayUTC = new Date();
-    const isSelectedDateToday =
-      selectedDate.getUTCFullYear() === todayUTC.getUTCFullYear() &&
-      selectedDate.getUTCMonth() === todayUTC.getUTCMonth() &&
-      selectedDate.getUTCDate() === todayUTC.getUTCDate();
+    // Calculate current minutes relative to 00:00 of selectedDate
+    // This allows "Now" line to work even if selectedDate is today but view spans yesterday/tomorrow
+    const nowEpoch = todayUTC.getTime();
+    const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
+    
+    const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
 
-    if (isSelectedDateToday) {
-      const now = new Date();
-      const currentMinutesUTC = now.getUTCHours() * 60 + now.getUTCMinutes();
-       if (currentMinutesUTC >= xAxisDomain[0] && currentMinutesUTC <= xAxisDomain[1]) {
-        setCurrentTimeLinePosition(currentMinutesUTC);
-      } else {
-        setCurrentTimeLinePosition(null);
-      }
+    if (currentMinutesRelativeToSelectedDayStart >= xAxisDomain[0] && currentMinutesRelativeToSelectedDayStart <= xAxisDomain[1]) {
+      setCurrentTimeLinePosition(currentMinutesRelativeToSelectedDayStart);
     } else {
       setCurrentTimeLinePosition(null);
     }
-  }, [selectedDate, xAxisDomain]);
+  }, [selectedDate, xAxisDomain, tasks]); // tasks dependency to re-evaluate if schedule changes
 
 
   const chartConfig = useMemo(() => {
     return effectiveTaskTypeOptions.reduce((acc, option) => {
       const key = taskValueToChartKey(option.value);
-      const defaultOption = DEFAULT_TASK_TYPE_OPTIONS.find(defOpt => defOpt.value === option.value);
       let color = "hsl(var(--muted))";
 
       if (option.value === "work") color = "hsl(var(--chart-1))";
@@ -136,7 +131,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       acc[key] = {
         label: option.label,
         color: color,
-        icon: defaultOption?.icon,
+        icon: DEFAULT_TASK_TYPE_OPTIONS.find(defOpt => defOpt.value === option.value)?.icon,
       };
       return acc;
     }, {} as ChartConfig);
@@ -144,37 +139,45 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
 
   const chartData = useMemo(() => {
-    const dayStart = new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate(), 0, 0, 0, 0));
+    const viewWindowStartMinutes = xAxisDomain[0];
+    const viewWindowEndMinutes = xAxisDomain[1];
 
-    const tasksForDay = tasks.filter(task => {
-      const coreTaskStartTime = new Date(task.startTime);
-      const taskEffectiveStart = new Date(coreTaskStartTime.getTime() - task.preActionDuration * 60000);
-      const taskEffectiveEnd = new Date(coreTaskStartTime.getTime() + (task.duration + task.postActionDuration) * 60000);
+    // Epoch milliseconds for 00:00 UTC of the selectedDate
+    const selectedDateEpochStartMs = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
+
+    // Epoch milliseconds for the view window
+    const viewWindowStartMs = selectedDateEpochStartMs + viewWindowStartMinutes * 60000;
+    const viewWindowEndMs = selectedDateEpochStartMs + viewWindowEndMinutes * 60000;
+
+    const tasksInView = tasks.filter(task => {
+      const taskCoreStartMs = new Date(task.startTime).getTime();
+      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
+      const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000;
       
-      const taskStartDay = new Date(Date.UTC(taskEffectiveStart.getUTCFullYear(), taskEffectiveStart.getUTCMonth(), taskEffectiveStart.getUTCDate()));
-      const taskEndDay = new Date(Date.UTC(taskEffectiveEnd.getUTCFullYear(), taskEffectiveEnd.getUTCMonth(), taskEffectiveEnd.getUTCDate()));
-      
-      return taskStartDay.getTime() <= selectedDate.getTime() && taskEndDay.getTime() >= selectedDate.getTime();
+      // Check for overlap between task's effective time and the view window
+      return taskEffectiveStartMs < viewWindowEndMs && taskEffectiveEndMs > viewWindowStartMs;
     });
     
-    tasksForDay.sort((a,b) => {
+    tasksInView.sort((a,b) => {
         const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
         const effectiveStartTimeB = new Date(b.startTime).getTime() - (b.preActionDuration * 60000);
         return effectiveStartTimeA - effectiveStartTimeB;
     });
 
-    return tasksForDay.map((task) => {
-      const coreTaskStartTime = new Date(task.startTime);
-      const taskEffectiveStart = new Date(coreTaskStartTime.getTime() - task.preActionDuration * 60000);
-      const taskEffectiveEnd = new Date(coreTaskStartTime.getTime() + (task.duration + task.postActionDuration) * 60000);
+    return tasksInView.map((task) => {
+      const taskCoreStartMs = new Date(task.startTime).getTime();
+      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
+      const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000;
 
-      let startMinutesOnDay = (taskEffectiveStart.getTime() - dayStart.getTime()) / 60000;
-      let endMinutesOnDay = (taskEffectiveEnd.getTime() - dayStart.getTime()) / 60000;
-
-      startMinutesOnDay = Math.max(xAxisDomain[0], startMinutesOnDay);
-      endMinutesOnDay = Math.min(xAxisDomain[1], endMinutesOnDay);
+      // Calculate task start/end minutes relative to 00:00 of selectedDate
+      let startMinutesRelativeToDay = (taskEffectiveStartMs - selectedDateEpochStartMs) / 60000;
+      let endMinutesRelativeToDay = (taskEffectiveEndMs - selectedDateEpochStartMs) / 60000;
       
-      if (startMinutesOnDay >= xAxisDomain[1] || endMinutesOnDay <= xAxisDomain[0] || startMinutesOnDay >= endMinutesOnDay) {
+      // Clip task to the chart's x-axis domain (view window)
+      const barStartMinutes = Math.max(viewWindowStartMinutes, startMinutesRelativeToDay);
+      const barEndMinutes = Math.min(viewWindowEndMinutes, endMinutesRelativeToDay);
+      
+      if (barStartMinutes >= barEndMinutes) { // Task is outside the clipped view or has zero duration in view
         return null;
       }
       
@@ -182,11 +185,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
       const taskNameForAxisDisplay = `${taskNameDisplay.substring(0,25)}${taskNameDisplay.length > 25 ? '...' : ''} (${task.spacecraft})`;
 
-
       return {
         id: task.id,
         taskNameForAxis: taskNameForAxisDisplay,
-        timeRange: [startMinutesOnDay, endMinutesOnDay] as [number, number],
+        timeRange: [barStartMinutes, barEndMinutes] as [number, number],
         fillColorKey: task.type,
         originalTask: task,
         tooltipLabel: taskNameDisplay,
@@ -222,6 +224,12 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
   const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80;
 
+  const xAxisTickFormatter = (value: number) => {
+    const hour = Math.floor(value / 60) % 24; // Modulo 24 for displaying HH
+    const minute = value % 60;
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -250,16 +258,19 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             <BarChart
               layout="vertical"
               data={chartData}
-              margin={{ top: 5, right: 30, left: Math.min(250, yAxisWidth), bottom: 20 }} // Increased left margin for longer names
+              margin={{ top: 5, right: 30, left: Math.min(250, yAxisWidth), bottom: 20 }}
               barCategoryGap="20%"
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
               <XAxis
                 type="number"
-                domain={xAxisDomain}
-                tickFormatter={(value) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`}
+                domain={xAxisDomain} // Uses the calculated absolute minute domain
+                tickFormatter={xAxisTickFormatter}
                 label={{ value: "Time (UTC)", position: "insideBottom", offset: -10, dy: 10 }}
                 allowDecimals={false}
+                scale="time" // Though type is number, scale can be time-like
+                interval="preserveStartEnd"
+                minTickGap={30} // Adjust for density
               />
               <YAxis
                 type="category"
@@ -288,7 +299,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
               )}
                {currentTimeLinePosition !== null && (
                 <ReferenceLine
-                  x={currentTimeLinePosition}
+                  x={currentTimeLinePosition} // Position is already relative to selectedDay 00:00
                   stroke="hsl(var(--destructive))"
                   strokeWidth={2}
                   strokeDasharray="8 4"

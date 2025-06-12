@@ -59,7 +59,7 @@ export interface DayChartTimeRangeOption {
   label: string; // e.g., "Work Hours", "Full Day"
   startHour: number; // 0-23 (UTC)
   startMinute: number; // 0-59
-  endHour: number; // 0-24 (UTC, 24 means end of day, i.e., 24:00 is next day 00:00)
+  endHour: number; // 0-47 (UTC, allows for next day, e.g. 26 means 02:00 next day)
   endMinute: number; // 0-59
 }
 
@@ -67,3 +67,4 @@ export type UserDayChartSettings = {
   customTimeRanges: DayChartTimeRangeOption[]; // User-defined ranges
   selectedTimeRangeId?: string; // ID of the currently selected/default range
 };
+

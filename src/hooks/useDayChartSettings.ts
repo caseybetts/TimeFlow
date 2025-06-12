@@ -6,12 +6,13 @@ import type { DayChartTimeRangeOption, UserDayChartSettings } from '@/types';
 
 const DAY_CHART_SETTINGS_KEY = 'timeflow-day-chart-settings';
 
+// Represents 00:00 to 24:00 (effectively 23:59:59) of the selected day
 export const DEFAULT_FULL_DAY_TIME_RANGE: Readonly<DayChartTimeRangeOption> = {
   id: 'full_day_default',
-  label: 'Full Day (00:00 - 23:59 UTC)',
+  label: 'Full Day (00:00 - 24:00 UTC)',
   startHour: 0,
   startMinute: 0,
-  endHour: 24, // Represents 24:00, effectively covering up to 23:59:59
+  endHour: 24, 
   endMinute: 0,
 };
 
@@ -117,3 +118,4 @@ export function useDayChartSettings(): {
     deleteCustomTimeRange,
   };
 }
+

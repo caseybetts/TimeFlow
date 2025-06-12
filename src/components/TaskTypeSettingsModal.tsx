@@ -28,8 +28,9 @@ interface TaskTypeSettingsModalProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-interface TimeRangeFormState extends Omit<DayChartTimeRangeOption, 'id' | 'startMinute' | 'endMinute'> {
+interface TimeRangeFormState {
   id?: string;
+  label: string;
   startTime: string; // "HH:mm"
   endTime: string; // "HH:mm"
 }
@@ -47,7 +48,6 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
   const [localTaskTypeConfig, setLocalTaskTypeConfig] = useState<UserTaskTypesConfig>({});
   const { toast } = useToast();
 
-  // State for managing DayChartTimeRange form
   const [isTimeRangeFormOpen, setIsTimeRangeFormOpen] = useState(false);
   const [editingTimeRange, setEditingTimeRange] = useState<TimeRangeFormState | null>(null);
 
@@ -90,7 +90,6 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
       title: "Task Type Settings Saved",
       description: "Task type configurations have been updated.",
     });
-    // onOpenChange(false); // Keep modal open if other settings are present
   };
 
   const handleResetSingleTaskTypeToDefault = (taskValue: TaskType) => {
@@ -105,20 +104,20 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
     });
   };
 
-  // --- DayChartTimeRange Methods ---
+  const formatTimeForInput = (hour: number, minute: number): string => {
+    return `${String(hour % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  };
+  
   const openTimeRangeForm = (range?: DayChartTimeRangeOption) => {
     if (range) {
       setEditingTimeRange({
         id: range.id,
         label: range.label,
-        startTime: `${String(range.startHour).padStart(2, '0')}:${String(range.startMinute).padStart(2, '0')}`,
-        endTime: `${String(range.endHour).padStart(2, '0')}:${String(range.endMinute).padStart(2, '0')}`,
-        // Raw hours/minutes for direct use if needed, but startTime/endTime strings are primary for form
-        startHour: range.startHour, 
-        endHour: range.endHour,
+        startTime: formatTimeForInput(range.startHour, range.startMinute),
+        endTime: formatTimeForInput(range.endHour, range.endMinute),
       });
     } else {
-      setEditingTimeRange({ label: "", startTime: "09:00", endTime: "17:00", startHour: 9, endHour: 17 });
+      setEditingTimeRange({ label: "", startTime: "09:00", endTime: "17:00"});
     }
     setIsTimeRangeFormOpen(true);
   };
@@ -132,21 +131,35 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
 
     if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM) ||
         startH < 0 || startH > 23 || startM < 0 || startM > 59 ||
-        endH < 0 || endH > 24 || endM < 0 || endM > 59 || (endH === 24 && endM > 0)) {
-      toast({ title: "Invalid Time", description: "Please enter valid hours (0-23, or 24 for end hour) and minutes (0-59).", variant: "destructive" });
+        endH < 0 || endH > 23 || endM < 0 || endM > 59 ) { // endH also 0-23 for input
+      toast({ title: "Invalid Time", description: "Please enter valid hours (0-23) and minutes (0-59).", variant: "destructive" });
       return;
     }
-     if ((startH * 60 + startM) >= (endH * 60 + endM)) {
-      toast({ title: "Invalid Range", description: "Start time must be before end time.", variant: "destructive" });
-      return;
+    
+    let actualEndHour = endH;
+    const startTotalMinutes = startH * 60 + startM;
+    const endTotalMinutesInput = endH * 60 + endM;
+
+    if (endTotalMinutesInput <= startTotalMinutes) {
+      actualEndHour += 24; // Spans midnight, so add 24 to the display hour
     }
 
+    const viewDurationMinutes = (actualEndHour * 60 + endM) - startTotalMinutes;
+
+    if (viewDurationMinutes <= 0) {
+      toast({ title: "Invalid Range", description: "End time must be after start time (can span midnight).", variant: "destructive" });
+      return;
+    }
+    if (viewDurationMinutes > 24 * 60) {
+       toast({ title: "Invalid Duration", description: "Time range duration cannot exceed 24 hours.", variant: "destructive" });
+      return;
+    }
 
     const rangeData = {
       label: editingTimeRange.label,
       startHour: startH,
       startMinute: startM,
-      endHour: endH,
+      endHour: actualEndHour, // Store the potentially adjusted (e.g., +24) end hour
       endMinute: endM,
     };
 
@@ -161,7 +174,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
     setEditingTimeRange(null);
   };
   
-  const formatTime = (hour: number, minute: number) => `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  const displayTime = (hour: number, minute: number) => `${String(hour % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
 
   return (
@@ -175,7 +188,6 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] p-1 pr-4">
-            {/* Task Type Configuration Section */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-foreground mb-3">Task Type Configuration</h3>
               <div className="space-y-6">
@@ -263,7 +275,6 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
 
             <Separator className="my-8" />
 
-            {/* Day Chart Time Range Configuration Section */}
             <div>
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-xl font-semibold text-foreground">Chart Time Ranges</h3>
@@ -278,7 +289,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                     <div>
                       <p className="font-medium text-primary">{range.label}</p>
                       <p className="text-sm text-muted-foreground">
-                        {formatTime(range.startHour, range.startMinute)} - {formatTime(range.endHour, range.endMinute)} UTC
+                        {displayTime(range.startHour, range.startMinute)} - {displayTime(range.endHour, range.endMinute)} UTC
                       </p>
                     </div>
                     <div className="space-x-2">
@@ -304,12 +315,11 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
         </DialogContent>
       </Dialog>
 
-      {/* Sub-Dialog for Adding/Editing Time Range */}
       <Dialog open={isTimeRangeFormOpen} onOpenChange={setIsTimeRangeFormOpen}>
         <DialogContent className="sm:max-w-md bg-card">
           <DialogHeader>
             <DialogTitle>{editingTimeRange?.id ? "Edit" : "Add"} Chart Time Range</DialogTitle>
-            <DialogDescription>Define a custom time range for the daily schedule graph.</DialogDescription>
+            <DialogDescription>Define a custom time range (max 24h duration) for the daily schedule graph. End time can span midnight.</DialogDescription>
           </DialogHeader>
           {editingTimeRange && (
             <form onSubmit={handleTimeRangeFormSubmit} className="space-y-4 py-2">
@@ -319,7 +329,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                   id="range-label"
                   value={editingTimeRange.label}
                   onChange={(e) => setEditingTimeRange(prev => prev ? { ...prev, label: e.target.value } : null)}
-                  placeholder="E.g., Work Hours"
+                  placeholder="E.g., Work Hours, Night Shift"
                   required
                 />
               </div>
@@ -343,7 +353,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                     onChange={(e) => setEditingTimeRange(prev => prev ? { ...prev, endTime: e.target.value } : null)}
                     required
                   />
-                    <p className="text-xs text-muted-foreground pt-1">Use 23:59 for end of day, or 00:00 for start of next day if range spans midnight (up to 24:00 internally).</p>
+                    <p className="text-xs text-muted-foreground pt-1">If end time is earlier than start, it's assumed to be on the next day.</p>
                 </div>
               </div>
               <DialogFooter className="pt-4">
@@ -359,3 +369,4 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
     </>
   );
 }
+
