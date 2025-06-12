@@ -19,7 +19,7 @@ import {
   type ChartConfig,
   ChartLegend,
   ChartLegendContent,
-  ChartTooltipContent,
+  ChartTooltipContent, // Ensure this is imported
 } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
 import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
@@ -61,14 +61,23 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
 
     const coreStartTime = new Date(task.startTime);
+    const formattedCoreStartTime = formatTaskTime(coreStartTime.toISOString());
     const effectiveStartTime = new Date(coreStartTime.getTime() - task.preActionDuration * 60000);
     const coreEndTime = new Date(coreStartTime.getTime() + task.duration * 60000);
     const effectiveEndTime = new Date(coreEndTime.getTime() + task.postActionDuration * 60000);
 
+    const tooltipLabelContent = (
+      <div className="font-bold">
+        {taskNameDisplay} ({taskTypeDetails?.label || task.type} / {task.spacecraft})
+        <br />
+        <span className="text-xs font-normal">Core Starts: {formattedCoreStartTime}</span>
+      </div>
+    );
+
     return (
       <ChartTooltipContent
         className="w-[300px] bg-background"
-        label={ <div className="font-bold">{taskNameDisplay} ({taskTypeDetails?.label || task.type} / {task.spacecraft})</div> }
+        label={tooltipLabelContent}
         content={
           <div className="text-sm space-y-1">
             {task.preActionDuration > 0 && (
@@ -118,7 +127,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     } else {
       setCurrentTimeLinePosition(null);
     }
-  }, [selectedDate, xAxisDomain, tasks]);
+  }, [selectedDate, xAxisDomain, tasks]); // Added tasks to dependency array to re-evaluate if tasks change
 
 
   const chartConfig = useMemo(() => {
@@ -127,10 +136,12 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       let color = "hsl(var(--muted))"; 
       const defaultType = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
       if (defaultType) {
+          // Assign colors based on chart theme variables
           if (defaultType.value === "work") color = "hsl(var(--chart-1))";
           else if (defaultType.value === "personal") color = "hsl(var(--chart-2))";
           else if (defaultType.value === "errands") color = "hsl(var(--chart-3))";
           else if (defaultType.value === "appointment") color = "hsl(var(--chart-4))";
+          // Add more else if for other types if needed, or a default fallback
       }
       acc[key] = { label: option.label, color: color, icon: defaultType?.icon };
       return acc;
