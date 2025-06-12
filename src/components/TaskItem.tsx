@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit3, Trash2, Clock, AlertTriangle, Satellite } from "lucide-react"; // Added Satellite
+import { Edit3, Trash2, Clock, AlertTriangle, Satellite } from "lucide-react"; 
 import {
   getTaskTypeColorClass, 
   getTaskTypeIcon,       
@@ -34,7 +34,8 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
   const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
 
   const coreTaskStartTimeStr = task.startTime;
-  const coreTaskEndTimeStr = calculateEndTime(coreTaskStartTimeStr, task.duration);
+  // task.duration is now always 1
+  const coreTaskEndTimeStr = calculateEndTime(coreTaskStartTimeStr, task.duration); 
 
   const preActionStartTimeStr = task.preActionDuration > 0
     ? calculateEndTime(coreTaskStartTimeStr, -task.preActionDuration)
@@ -127,7 +128,7 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
           <div className="flex items-center font-medium">
             <Clock className="mr-2 h-4 w-4 text-primary" />
             <span>
-              Core Task: {task.duration} min
+              Core Task: {task.duration} min 
               ({formatTaskTime(coreTaskStartTimeStr)} - {formatTaskTime(coreTaskEndTimeStr)})
             </span>
           </div>

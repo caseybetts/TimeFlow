@@ -46,7 +46,7 @@ const taskFormSchema = z.object({
   }, {
     message: "Invalid start time format. Please ensure it's a complete date and time.",
   }),
-  duration: z.coerce.number().min(1, "Duration must be at least 1 minute."),
+  // duration is removed - will be fixed to 1 min
   type: z.enum(TASK_TYPES),
 });
 
@@ -82,15 +82,15 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           name: initialTask.name || "",
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
-          duration: initialTask.duration,
           type: initialTask.type,
+          // duration removed
         }
       : {
           name: "",
           spacecraft: defaultSpacecraft,
           startTime: defaultInitialUtcTimeForInput,
-          duration: 30,
           type: defaultTaskType,
+          // duration removed
         },
   });
 
@@ -102,16 +102,16 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           name: initialTask.name || "",
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
-          duration: initialTask.duration,
           type: initialTask.type,
+          // duration removed
         });
       } else {
         form.reset({
           name: "",
           spacecraft: defaultSpacecraft,
           startTime: getUtcDateTimeLocalString(new Date()),
-          duration: 30,
           type: defaultTypeForNew,
+          // duration removed
         });
       }
     }
@@ -131,7 +131,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       name: taskName,
       spacecraft: values.spacecraft,
       startTime: new Date(values.startTime + 'Z').toISOString(),
-      duration: values.duration,
+      duration: 1, // Core duration is now fixed at 1 minute
       type: values.type,
       preActionDuration: selectedTaskTypeDetails?.preActionDuration || 0,
       postActionDuration: selectedTaskTypeDetails?.postActionDuration || 0,
@@ -201,19 +201,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="duration"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Core Duration (minutes)</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="30" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Duration field removed from UI */}
             <FormField
               control={form.control}
               name="type"

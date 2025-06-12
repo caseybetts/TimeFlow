@@ -83,7 +83,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const coreStartTime = new Date(task.startTime);
     const formattedCoreStartTime = formatTaskTime(coreStartTime.toISOString());
     const effectiveStartTime = new Date(coreStartTime.getTime() - task.preActionDuration * 60000);
-    const coreEndTime = new Date(coreStartTime.getTime() + task.duration * 60000);
+    const coreEndTime = new Date(coreStartTime.getTime() + task.duration * 60000); // task.duration is now 1
     const effectiveEndTime = new Date(coreEndTime.getTime() + task.postActionDuration * 60000);
 
     const tooltipLabelContent = (
@@ -117,9 +117,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const MIN_SLIDER_MINUTES = 0;
-const MAX_SLIDER_MINUTES = 48 * 60; // Allow viewing up to 48 hours from selectedDate start
-const MIN_WINDOW_DURATION_MINUTES = 30; // Minimum 30 minutes view window
-const DEFAULT_INITIAL_WINDOW_MINUTES: [number, number] = [6 * 60, 18 * 60]; // Default to 06:00 - 18:00 UTC
+const MAX_SLIDER_MINUTES = 48 * 60; 
+const MIN_WINDOW_DURATION_MINUTES = 30; 
+const DEFAULT_INITIAL_WINDOW_MINUTES: [number, number] = [6 * 60, 18 * 60]; 
 
 export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps) {
   const [isClient, setIsClient] = useState(false);
@@ -177,6 +177,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     const tasksInView = tasks.filter(task => {
       const taskCoreStartMs = new Date(task.startTime).getTime();
       const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
+      // task.duration is now always 1 for core task
       const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000;
       return taskEffectiveStartMs < viewWindowEndMs && taskEffectiveEndMs > viewWindowStartMs;
     });
@@ -191,6 +192,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       const taskCoreStartMs = new Date(task.startTime).getTime();
       const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
       let taskStartMinutesRelativeToDay = (taskEffectiveStartMs - selectedDateEpochStartMs) / 60000;
+      // task.duration is now always 1 for core task
       const totalEffectiveDurationMinutes = task.preActionDuration + task.duration + task.postActionDuration;
       let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + totalEffectiveDurationMinutes;
       
@@ -348,4 +350,3 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
-

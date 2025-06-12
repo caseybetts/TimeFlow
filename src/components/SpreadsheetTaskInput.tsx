@@ -55,7 +55,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         name: "",
         spacecraft: defaultSpacecraft,
         startTime: getUtcDateTimeLocalString(new Date()),
-        duration: "30",
+        // duration removed
         type: defaultTaskType,
       },
     ]);
@@ -125,12 +125,6 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         taskName = `${taskTypeDetails.label} - ${row.spacecraft}`;
       }
 
-      const durationNum = parseInt(row.duration, 10);
-      if (isNaN(durationNum) || durationNum <= 0) {
-        toast({ title: "Validation Error", description: `Duration must be a positive number for task "${taskName}".`, variant: "destructive" });
-        isValid = false;
-        break;
-      }
       if (isNaN(Date.parse(row.startTime + 'Z'))) {
          toast({ title: "Validation Error", description: `Invalid start time for task "${taskName}".`, variant: "destructive" });
         isValid = false;
@@ -141,7 +135,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         name: taskName,
         spacecraft: row.spacecraft,
         startTime: new Date(row.startTime + 'Z').toISOString(),
-        duration: durationNum,
+        duration: 1, // Core duration is now fixed at 1 minute
         type: row.type,
         preActionDuration: taskTypeDetails.preActionDuration,
         postActionDuration: taskTypeDetails.postActionDuration,
@@ -174,12 +168,12 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         <Table className="mb-4">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[20%]">Task Name (Optional)</TableHead>
-              <TableHead className="w-[15%]">Spacecraft</TableHead>
-              <TableHead className="w-[25%]">Start Time (UTC)</TableHead>
-              <TableHead className="w-[10%]">Duration (min)</TableHead>
-              <TableHead className="w-[15%]">Type</TableHead>
-              <TableHead className="w-[15%] text-right">Actions</TableHead>
+              <TableHead className="w-[25%]">Task Name (Optional)</TableHead>
+              <TableHead className="w-[20%]">Spacecraft</TableHead>
+              <TableHead className="w-[30%]">Start Time (UTC)</TableHead>
+              {/* Duration column removed */}
+              <TableHead className="w-[20%]">Type</TableHead>
+              <TableHead className="w-[5%] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -224,17 +218,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
                     className="h-9"
                   />
                 </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    value={row.duration}
-                    onChange={(e) =>
-                      handleInputChange(row.tempId, "duration", e.target.value)
-                    }
-                    placeholder="30"
-                    className="h-9"
-                  />
-                </TableCell>
+                {/* Duration cell removed */}
                 <TableCell>
                   <Select
                     value={row.type}
