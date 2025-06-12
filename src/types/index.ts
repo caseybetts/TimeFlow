@@ -56,15 +56,25 @@ export interface SpreadsheetTaskRow {
 // For DayScheduleChart time range configuration
 export interface DayChartTimeRangeOption {
   id: string; // Unique ID for the option
-  label: string; // e.g., "Work Hours", "Full Day"
-  startHour: number; // 0-23 (UTC)
+  label: string; // e.g., "Work Hours", "Full Day" - This will be dynamically generated if DST is active
+  startHour: number; // 0-23 (UTC) for base, can be >23 if DST shifted and range spans midnight
   startMinute: number; // 0-59
-  endHour: number; // 0-47 (UTC, allows for next day, e.g. 26 means 02:00 next day)
+  endHour: number; // 0-47 (UTC, allows for next day) for base, can be >47 if DST shifted
   endMinute: number; // 0-59
+  // Base hours are stored internally in the hook for static ranges
 }
 
 export type UserDayChartSettings = {
-  customTimeRanges: DayChartTimeRangeOption[]; // User-defined ranges
-  selectedTimeRangeId?: string; // ID of the currently selected/default range
+  selectedTimeRangeId?: string; // ID of the currently selected/default range from the static list
+  isDstActive?: boolean; // Tracks if Daylight Savings Time offset is active
 };
 
+// Base definition for static time ranges, before DST adjustment
+export interface BaseDayChartTimeRangeOption {
+  id: string;
+  baseLabel: string; // The fundamental label, e.g., "Work Hours"
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+}
