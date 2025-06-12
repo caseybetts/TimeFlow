@@ -53,28 +53,3 @@ export interface SpreadsheetTaskRow {
   type: TaskType;
 }
 
-// For DayScheduleChart time range configuration
-// This represents the final structure for the dropdown and chart logic
-export interface DayChartTimeRangeOption {
-  id: string; // Unique ID for the option
-  label: string; // e.g., "Days Shift (07:00 - 15:30 MST)"
-  startHour: number; // Calculated UTC start hour for chart X-axis
-  startMinute: number; // Calculated UTC start minute
-  endHour: number; // Calculated UTC end hour (can be >23)
-  endMinute: number; // Calculated UTC end minute
-}
-
-export type UserDayChartSettings = {
-  selectedTimeRangeId?: string; // ID of the currently selected/default range from the static list
-  isDstActive?: boolean; // Tracks if Daylight Savings Time offset is active (true for MDT, false for MST)
-};
-
-// Base definition for static time ranges, stores local time details
-export interface BaseDayChartTimeRangeOption {
-  id: string;
-  baseLabel: string; // The fundamental label, e.g., "Days Shift"
-  localStartHour: number;
-  localStartMinute: number;
-  localEndHour: number; // Can be 24 for end of day, or < localStartHour if spans midnight
-  localEndMinute: number;
-}

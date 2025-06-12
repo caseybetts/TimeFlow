@@ -18,11 +18,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
 import type { TaskType, UserEditableTaskTypeFields, UserTaskTypesConfig } from "@/types";
-import { Save, RotateCcw, Settings2 } from "lucide-react"; // Changed PlusCircle, Edit, Trash2 to Settings2 for DST
+import { Save, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Separator } from "@/components/ui/separator";
-import { useDayChartSettings } from "@/hooks/useDayChartSettings";
-import { Switch } from "@/components/ui/switch"; // Added Switch import
 
 interface TaskTypeSettingsModalProps {
   isOpen: boolean;
@@ -31,8 +28,6 @@ interface TaskTypeSettingsModalProps {
 
 export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettingsModalProps) {
   const { userConfig, updateUserConfig, resetTaskTypeConfig } = useTaskTypeConfig();
-  const { isDstActive, toggleDstActive } = useDayChartSettings();
-
   const [localTaskTypeConfig, setLocalTaskTypeConfig] = useState<UserTaskTypesConfig>({});
   const { toast } = useToast();
 
@@ -80,7 +75,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
   const handleResetSingleTaskTypeToDefault = (taskValue: TaskType) => {
     resetTaskTypeConfig(taskValue); 
     setLocalTaskTypeConfig(prev => {
-        const { [taskValue]: _, ...rest } = prev;
+        const { [taskValue]: _, ...rest } = prev; // Remove the specific task type override
         return rest;
     });
      toast({
@@ -89,22 +84,14 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
     });
   };
 
-  const handleDstToggle = () => {
-    toggleDstActive();
-    toast({
-        title: `Daylight Savings Time ${!isDstActive ? "Enabled" : "Disabled"}`,
-        description: `Chart time ranges will be shifted by ${!isDstActive ? "+1" : "-1"} hour.`,
-    });
-  };
-
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg md:max-w-2xl bg-card">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl">Application Settings</DialogTitle>
+            <DialogTitle className="font-headline text-2xl">Task Type Settings</DialogTitle>
             <DialogDescription>
-              Customize task types and chart display preferences.
+              Customize labels and pre/post action durations for task types.
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] p-1 pr-4">
@@ -191,27 +178,6 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                <Button onClick={handleTaskTypeSaveChanges} className="mt-4">
                 <Save className="mr-2 h-4 w-4" /> Save Task Type Changes
               </Button>
-            </div>
-
-            <Separator className="my-8" />
-
-            <div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">Chart Display Settings</h3>
-              <div className="p-4 border rounded-md shadow-sm bg-background">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="dst-toggle" className="text-base">Daylight Savings Time Mode</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Enable to shift chart time ranges by +1 hour.
-                    </p>
-                  </div>
-                  <Switch
-                    id="dst-toggle"
-                    checked={isDstActive}
-                    onCheckedChange={handleDstToggle}
-                  />
-                </div>
-              </div>
             </div>
           </ScrollArea>
           <DialogFooter className="pt-4 mt-4">
