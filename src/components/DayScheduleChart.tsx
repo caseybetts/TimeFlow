@@ -17,9 +17,8 @@ import {
 import {
   ChartContainer,
   type ChartConfig,
-  ChartLegend,
   ChartLegendContent,
-  ChartTooltipContent, // Ensure this is imported
+  // ChartTooltipContent, // No longer used directly by CustomTooltip in this version
 } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
 import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
@@ -30,13 +29,13 @@ import { Label } from "@/components/ui/label";
 
 interface DayScheduleChartProps {
   tasks: Task[];
-  selectedDate: Date; // This is the primary day the chart is focused on (UTC)
+  selectedDate: Date; 
 }
 
 interface ProcessedChartDataPoint {
   id: string;
   taskNameForAxis: string;
-  timeRange: [number, number]; // Minutes relative to 00:00 of selectedDate (UTC)
+  timeRange: [number, number]; 
   fillColorKey: TaskType;
   originalTask: Task;
   tooltipLabel: string;
@@ -55,7 +54,7 @@ const formatMinutesToTimeLocal = (totalMinutes: number): string => {
 const CustomTooltip = ({ active, payload, label }: any) => {
   console.log("CustomTooltip called (simplified test):", { active, payload, label });
   if (active && payload && payload.length) {
-    const data = payload[0].payload as ProcessedChartDataPoint; // Assuming payload[0].payload contains our ProcessedChartDataPoint
+    const data = payload[0].payload as ProcessedChartDataPoint; 
     
     if (!data) {
         console.error("CustomTooltip (simplified): data (payload[0].payload) is undefined!", payload);
@@ -75,23 +74,28 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     }
 
     const task = data.originalTask;
-    const taskTypeDetails = getTaskTypeDetails(task.type, DEFAULT_TASK_TYPE_OPTIONS); // Use default as fallback if effective not available here
-    const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
+    // For tooltip, use effectiveTaskTypeOptions to get the current label
+    const taskTypeDetailsEffective = getTaskTypeDetails(task.type, DEFAULT_TASK_TYPE_OPTIONS); // Can use DEFAULT here or pass effectiveTaskTypeOptions if needed contextually
+    const taskNameDisplay = task.name || `${taskTypeDetailsEffective?.label || task.type} - ${task.spacecraft}`;
     const coreStartTime = new Date(task.startTime);
     const formattedCoreStartTime = formatTaskTime(coreStartTime.toISOString());
 
     return (
       <div style={{ 
-          backgroundColor: 'white', 
-          border: '1px solid #ccc', 
+          backgroundColor: 'hsla(var(--background) / 0.9)', 
+          border: '1px solid hsl(var(--border))', 
           padding: '10px', 
-          boxShadow: '2px 2px 5px rgba(0,0,0,0.1)',
-          zIndex: 1000 /* Ensure it's on top */
+          borderRadius: 'var(--radius)',
+          boxShadow: '0 4px 6px hsla(var(--foreground) / 0.1)',
+          color: 'hsl(var(--foreground))',
+          fontSize: '0.875rem',
+          zIndex: 1000 
         }}>
-        <p style={{ fontWeight: 'bold', margin: '0 0 5px 0' }}>{taskNameDisplay}</p>
-        <p style={{ margin: '0 0 5px 0' }}>Spacecraft: {task.spacecraft}</p>
-        <p style={{ margin: '0 0 5px 0' }}>Start: {formattedCoreStartTime}</p>
-        <p style={{ margin: '0' }}>Pre: {task.preActionDuration}m, Post: {task.postActionDuration}m</p>
+        <p style={{ fontWeight: '600', margin: '0 0 8px 0', borderBottom: '1px solid hsl(var(--border))', paddingBottom: '8px' }}>{taskNameDisplay}</p>
+        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Spacecraft:</span> {task.spacecraft}</p>
+        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Core Starts:</span> {formattedCoreStartTime}</p>
+        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Pre-Action:</span> {task.preActionDuration} min</p>
+        <p style={{ margin: '0' }}><span style={{fontWeight: '500'}}>Post-Action:</span> {task.postActionDuration} min</p>
       </div>
     );
   }
@@ -137,14 +141,34 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     return effectiveTaskTypeOptions.reduce((acc, option) => {
       const key = taskValueToChartKey(option.value);
       let color = "hsl(var(--muted))"; 
+      
       const defaultType = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
+
       if (defaultType) {
-          if (defaultType.value === "work") color = "hsl(var(--chart-1))";
-          else if (defaultType.value === "personal") color = "hsl(var(--chart-2))";
-          else if (defaultType.value === "errands") color = "hsl(var(--chart-3))";
-          else if (defaultType.value === "appointment") color = "hsl(var(--chart-4))";
+        switch (defaultType.value) {
+          case "fsv":
+            color = "hsl(var(--chart-1))";
+            break;
+          case "rtp":
+            color = "hsl(var(--chart-2))";
+            break;
+          case "tl":
+            color = "hsl(var(--chart-3))";
+            break;
+          case "appointment":
+            color = "hsl(var(--chart-4))";
+            break;
+          default:
+            // Fallback for any other default types not explicitly mapped
+            break; 
+        }
       }
-      acc[key] = { label: option.label, color: color, icon: defaultType?.icon };
+      
+      acc[key] = { 
+        label: option.label, 
+        color: color, 
+        icon: option.icon || defaultType?.icon // Prefer effective icon, fallback to default
+      };
       return acc;
     }, {} as ChartConfig);
   }, [effectiveTaskTypeOptions]);
@@ -162,7 +186,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     const tasksInView = tasks.filter(task => {
       const taskCoreStartMs = new Date(task.startTime).getTime(); 
       const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000;
-      const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000;
+      // Core duration is always 1 min.
+      const taskEffectiveEndMs = taskCoreStartMs + (1 + task.postActionDuration) * 60000;
       return taskEffectiveStartMs < viewWindowEndMs && taskEffectiveEndMs > viewWindowStartMs;
     });
     
@@ -178,7 +203,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       
       let taskStartMinutesRelativeToDay = (taskEffectiveStartMs - selectedDateEpochStartMs) / 60000;
       
-      const totalEffectiveDurationMinutes = task.preActionDuration + task.duration + task.postActionDuration;
+      // Core duration is always 1 min.
+      const totalEffectiveDurationMinutes = task.preActionDuration + 1 + task.postActionDuration;
       let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + totalEffectiveDurationMinutes;
       
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
@@ -296,7 +322,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 <Tooltip
                   cursor={{ fill: 'hsla(var(--muted), 0.5)' }}
                   content={<CustomTooltip />}
-                  wrapperStyle={{ zIndex: 1100 }} /* Added z-index to wrapper */
+                  wrapperStyle={{ zIndex: 1100 }} 
                 />
                 <Legend content={<ChartLegendContent />} />
                 {chartData.length > 0 && (
@@ -336,5 +362,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
+    
 
     
