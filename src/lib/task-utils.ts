@@ -5,8 +5,8 @@ import { Briefcase, User, ShoppingCart, CalendarDays, type LucideIcon } from 'lu
 // Base default definitions for task types
 export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
   {
-    value: "work",
-    label: "Work",
+    value: "fsv",
+    label: "FSV",
     icon: Briefcase,
     color: "bg-sky-500",
     preActionDuration: 10,
@@ -15,8 +15,8 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
     postActionLabel: "Wrap-up",
   },
   {
-    value: "personal",
-    label: "Personal",
+    value: "rtp",
+    label: "RTP",
     icon: User,
     color: "bg-purple-500",
     preActionDuration: 0,
@@ -25,8 +25,8 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
     postActionLabel: "",
   },
   {
-    value: "errands",
-    label: "Errands",
+    value: "tl",
+    label: "TL",
     icon: ShoppingCart,
     color: "bg-orange-500",
     preActionDuration: 5,

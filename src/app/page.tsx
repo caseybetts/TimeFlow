@@ -5,8 +5,9 @@ import { useState, useEffect, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { TaskForm } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
-import type { Task, TaskType, Spacecraft, SpreadsheetTaskRow } from "@/types";
-import { TASK_TYPES, SPACECRAFT_OPTIONS } from "@/types";
+import type { Task, TaskType, Spacecraft } from "@/types";
+// TASK_TYPES import is no longer needed here directly for CSV validation
+import { SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Sun, Moon, Loader2, Settings, Upload, Download } from "lucide-react";
@@ -225,7 +226,7 @@ export default function HomePage() {
         return;
       }
 
-      const lines = csvString.split(/\r\n|\n/).filter(line => line.trim() !== ''); // Filter out empty lines
+      const lines = csvString.split(/\r\n|\n/).filter(line => line.trim() !== ''); 
       if (lines.length < 2) {
         toast({ title: "Import Error", description: "CSV file must have a header and at least one data row.", variant: "destructive" });
         return;
@@ -235,7 +236,6 @@ export default function HomePage() {
       const importedTasks: Task[] = [];
       const errors: string[] = [];
 
-      // Get column indices
       const colIndices = {
         name: headerLine.indexOf("name"),
         spacecraft: headerLine.indexOf("spacecraft"),
@@ -246,7 +246,6 @@ export default function HomePage() {
         isCompleted: headerLine.indexOf("iscompleted"),
       };
       
-      // Validate essential headers
       if (colIndices.spacecraft === -1 || colIndices.startTime === -1 || colIndices.type === -1) {
           errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type.");
       }
@@ -254,16 +253,16 @@ export default function HomePage() {
 
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
-        if (values.length < headerLine.length && errors.length === 0) { // Only push this error once if headers are fine
+        if (values.length < headerLine.length && errors.length === 0) { 
             errors.push(`Row ${i + 1}: Incorrect number of columns. Expected ${headerLine.length}, got ${values.length}.`);
             continue;
         }
-        if (errors.length > 0 && colIndices.spacecraft === -1) break; // Stop if essential headers are bad
+        if (errors.length > 0 && colIndices.spacecraft === -1) break; 
 
         try {
           const csvSpacecraft = values[colIndices.spacecraft] as Spacecraft;
           const csvStartTime = values[colIndices.startTime];
-          const csvTaskType = values[colIndices.type] as TaskType;
+          const csvTaskType = values[colIndices.type] as TaskType; // This will be validated against effectiveTaskTypeOptions
 
           if (!SPACECRAFT_OPTIONS.includes(csvSpacecraft)) {
             errors.push(`Row ${i + 1}: Invalid spacecraft "${csvSpacecraft}".`);
@@ -273,8 +272,11 @@ export default function HomePage() {
             errors.push(`Row ${i + 1}: Invalid startTime format "${csvStartTime}".`);
             continue;
           }
-          if (!TASK_TYPES.includes(csvTaskType)) {
-            errors.push(`Row ${i + 1}: Invalid task type "${csvTaskType}".`);
+
+          const isValidTaskType = effectiveTaskTypeOptions.some(option => option.value === csvTaskType);
+          if (!isValidTaskType) {
+            const validTypesString = effectiveTaskTypeOptions.map(opt => opt.value).join(', ');
+            errors.push(`Row ${i + 1}: Invalid task type "${csvTaskType}". Valid types are: ${validTypesString}.`);
             continue;
           }
 
@@ -300,7 +302,7 @@ export default function HomePage() {
             name,
             spacecraft: csvSpacecraft,
             startTime: new Date(csvStartTime).toISOString(),
-            duration: 1, // Fixed duration
+            duration: 1, 
             type: csvTaskType,
             preActionDuration,
             postActionDuration,
@@ -348,7 +350,7 @@ export default function HomePage() {
           className: "bg-accent text-accent-foreground border-accent"
         });
       }
-      setCsvFile(null); // Reset file input
+      setCsvFile(null); 
       const fileInput = document.getElementById('csvImporter') as HTMLInputElement;
       if (fileInput) fileInput.value = "";
 
@@ -403,8 +405,10 @@ export default function HomePage() {
             <CardTitle>Import Tasks from CSV</CardTitle>
             <CardDescription>
               Upload a CSV file to import tasks. Ensure your CSV has a header row with columns like:
-              name (optional), spacecraft, startTime (ISO format), type, preActionDuration (optional), postActionDuration (optional), isCompleted (optional, true/false).
+              name (optional), spacecraft, startTime (ISO format), type (e.g., fsv, rtp), 
+              preActionDuration (optional), postActionDuration (optional), isCompleted (optional, true/false).
               The 'id' and 'duration' columns from the CSV will be ignored; new IDs are generated and duration is fixed at 1 min.
+              Valid task type values are: {effectiveTaskTypeOptions.map(opt => opt.value).join(', ')}.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

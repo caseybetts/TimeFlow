@@ -1,7 +1,7 @@
 
 import type { LucideIcon } from 'lucide-react';
 
-export const TASK_TYPES = ["work", "personal", "errands", "appointment"] as const;
+export const TASK_TYPES = ["fsv", "rtp", "tl", "appointment"] as const; // Changed to lowercase
 export type TaskType = (typeof TASK_TYPES)[number];
 
 export const SPACECRAFT_OPTIONS = ["GE01", "WV01", "WV02", "WV03", "LG01", "LG02", "LG03", "LG04", "LG05", "LG06"] as const;
@@ -52,3 +52,4 @@ export interface SpreadsheetTaskRow {
   // duration is removed as it's now fixed at 1 min
   type: TaskType;
 }
+
