@@ -10,7 +10,7 @@ import type { Task, TaskType, Spacecraft } from "@/types";
 import { SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, Loader2, Settings, Upload, Download } from "lucide-react";
+import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download } from "lucide-react"; // Changed Loader2 to LoaderCircle
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -27,7 +27,7 @@ export default function HomePage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false); // Initialized to false
   const { toast } = useToast();
   const [selectedDateForChart, setSelectedDateForChart] = useState(new Date());
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
@@ -40,16 +40,21 @@ export default function HomePage() {
     setIsMounted(true);
     const today = new Date();
     setSelectedDateForChart(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())));
-
-    const savedTheme = localStorage.getItem('timeflow-theme');
-    if (savedTheme) {
-      setIsDarkMode(savedTheme === 'dark');
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
   }, []);
+
+  useEffect(() => {
+    if (isMounted) {
+      const savedTheme = localStorage.getItem('timeflow-theme');
+      let newDarkModeState = false;
+      if (savedTheme) {
+        newDarkModeState = savedTheme === 'dark';
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        newDarkModeState = true;
+      }
+      setIsDarkMode(newDarkModeState);
+      document.documentElement.classList.toggle('dark', newDarkModeState);
+    }
+  }, [isMounted]);
 
   const toggleDarkMode = () => {
     const newDarkModeState = !isDarkMode;
@@ -366,7 +371,7 @@ export default function HomePage() {
   if (!isMounted) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <LoaderCircle className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
