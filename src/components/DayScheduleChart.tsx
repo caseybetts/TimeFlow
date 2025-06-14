@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Task, TaskType } from "@/types";
+import type { Task, TaskType, TaskTypeOption } from "@/types";
 import {
   Bar,
   BarChart,
@@ -28,10 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 
-// A short, simple "pluck" or "chime" like sound as a Base64 encoded WAV file.
-// This sound is in the public domain or generated to be royalty-free.
 const CHIME_SOUND_DATA_URI = "data:audio/wav;base64,UklGRlMMAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUkMAAB9AAACAQMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2OjqCio6SlpqeoqaqrrK2ur7Cxsrc=";
-
 
 interface DayScheduleChartProps {
   tasks: Task[];
@@ -58,30 +55,33 @@ const formatMinutesToTimeLocal = (totalMinutes: number): string => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  console.log("CustomTooltip called (simplified test):", { active, payload, label });
+interface CustomTooltipInternalProps {
+  active?: boolean;
+  payload?: Array<{ payload: ProcessedChartDataPoint; [key: string]: any }>;
+  label?: string | number;
+  effectiveTaskTypeOptions: TaskTypeOption[];
+}
+
+const CustomTooltipContentRenderer = ({ active, payload, label, effectiveTaskTypeOptions }: CustomTooltipInternalProps) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload as ProcessedChartDataPoint;
+    const data = payload[0].payload;
 
     if (!data) {
-        console.error("CustomTooltip (simplified): data (payload[0].payload) is undefined!", payload);
         return (
-            <div style={{ backgroundColor: 'darkred', color: 'white', padding: '5px', border: '1px solid black', zIndex: 1000 }}>
-                Error: Payload data missing.
+            <div style={{ backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', padding: '5px', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', zIndex: 1000 }}>
+                Error: Tooltip payload data missing.
             </div>
         );
     }
     if (!data.originalTask) {
-        console.error("CustomTooltip (simplified): data.originalTask is undefined!", data);
          return (
-            <div style={{ backgroundColor: 'darkred', color: 'white', padding: '5px', border: '1px solid black', zIndex: 1000 }}>
-                Error: Original task data missing. (Task name: {data.taskNameForAxis || 'Unknown'})
+            <div style={{ backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', padding: '5px', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', zIndex: 1000 }}>
+                Error: Original task data missing in tooltip. (Task name: {data.taskNameForAxis || 'Unknown'})
             </div>
         );
     }
 
     const task = data.originalTask;
-    const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Use hook here
     const taskTypeDetailsEffective = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
     const taskNameDisplay = task.name || `${taskTypeDetailsEffective?.label || task.type} - ${task.spacecraft}`;
     const coreStartTime = new Date(task.startTime);
@@ -96,7 +96,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           boxShadow: '0 4px 6px hsla(var(--foreground) / 0.1)',
           color: 'hsl(var(--foreground))',
           fontSize: '0.875rem',
-          zIndex: 1000 // Ensure tooltip is on top
+          zIndex: 1000 
         }}>
         <p style={{ fontWeight: '600', margin: '0 0 8px 0', borderBottom: '1px solid hsl(var(--border))', paddingBottom: '8px' }}>
           {taskNameDisplay} <span style={{opacity: 0.7}}>({task.isCompleted ? "Completed" : "Pending"})</span>
@@ -111,6 +111,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+
 const MIN_SLIDER_MINUTES = 0;
 const MAX_SLIDER_MINUTES = 48 * 60; 
 const MIN_WINDOW_DURATION_MINUTES = 30; 
@@ -123,7 +124,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const [viewWindow, setViewWindow] = useState<[number, number]>(DEFAULT_INITIAL_WINDOW_MINUTES);
   const [refreshKey, setRefreshKey] = useState(0);
   const [playedChimeTaskIds, setPlayedChimeTaskIds] = useState(new Set<string>());
-
 
   useEffect(() => {
     setIsClient(true);
@@ -234,7 +234,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     }
   }, [selectedDate, xAxisDomain, tasks, refreshKey]);
 
-  // Effect to play chime sounds
   useEffect(() => {
     if (currentTimeLinePosition === null || !chartData.length || !isClient) {
       return;
@@ -244,7 +243,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     let soundPlayedThisCycle = false;
 
     chartData.forEach((taskDataPoint) => {
-      const taskEffectiveStartMinutes = taskDataPoint.timeRange[0]; // Start of the bar on the chart
+      const taskEffectiveStartMinutes = taskDataPoint.timeRange[0];
 
       if (
         taskEffectiveStartMinutes <= currentTimeLinePosition &&
@@ -266,9 +265,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     }
   }, [currentTimeLinePosition, chartData, playedChimeTaskIds, isClient]);
 
-  // Effect to reset played chimes when context changes (e.g., date, tasks, view window)
   useEffect(() => {
-    if (isClient) { // Only run client-side
+    if (isClient) { 
         setPlayedChimeTaskIds(new Set<string>());
     }
   }, [selectedDate, tasks, viewWindow, isClient]);
@@ -386,7 +384,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 />
                 <Tooltip
                   cursor={{ fill: 'hsla(var(--muted), 0.5)' }} 
-                  content={<CustomTooltip />} 
+                  content={(props) => <CustomTooltipContentRenderer {...props} effectiveTaskTypeOptions={effectiveTaskTypeOptions} />}
                   wrapperStyle={{ zIndex: 1100 }}
                 />
                 <Legend content={<ChartLegendContent />} />
@@ -438,4 +436,3 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
-
