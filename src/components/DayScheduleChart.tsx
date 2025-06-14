@@ -28,8 +28,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 
-const CHIME_SOUND_DATA_URI = "data:audio/wav;base64,UklGRlMMAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUkMAAB9AAACAQMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2OjqCio6SlpqeoqaqrrK2ur7Cxsrc=";
-
 interface DayScheduleChartProps {
   tasks: Task[];
   selectedDate: Date;
@@ -123,20 +121,15 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
   const [viewWindow, setViewWindow] = useState<[number, number]>(DEFAULT_INITIAL_WINDOW_MINUTES);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [playedChimeTaskIds, setPlayedChimeTaskIds] = useState(new Set<string>());
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const xAxisDomain: [number, number] = useMemo(() => {
-    return viewWindow;
-  }, [viewWindow]);
-
   const chartConfig = useMemo(() => {
     return effectiveTaskTypeOptions.reduce((acc, option) => {
-      const key = taskValueToChartKey(option.value); 
-      let color = "hsl(var(--muted))"; 
+      const key = taskValueToChartKey(option.value);
+      let color = "hsl(var(--muted))";
 
       const defaultType = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
 
@@ -155,23 +148,26 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             color = "hsl(var(--chart-4))";
             break;
           default:
+            // For any other default task types not explicitly listed,
+            // or for custom task types (if they could exist without a default backing),
+            // they would fall back to the initial `hsl(var(--muted))` or you could assign another default chart color.
+            // Example: color = "hsl(var(--chart-5))";
             break;
         }
       }
 
       acc[key] = {
-        label: option.label, 
+        label: option.label,
         color: color,
-        icon: option.icon || defaultType?.icon 
+        icon: option.icon || defaultType?.icon
       };
       return acc;
     }, {} as ChartConfig);
   }, [effectiveTaskTypeOptions]);
 
-
   const chartData = useMemo(() => {
-    const viewWindowStartMinutesUTC = xAxisDomain[0];
-    const viewWindowEndMinutesUTC = xAxisDomain[1];
+    const viewWindowStartMinutesUTC = viewWindow[0];
+    const viewWindowEndMinutesUTC = viewWindow[1];
 
     const selectedDateEpochStartMs = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
 
@@ -216,7 +212,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         isCompleted: task.isCompleted || false,
       };
     }).filter(Boolean) as ProcessedChartDataPoint[]; 
-  }, [tasks, selectedDate, xAxisDomain, effectiveTaskTypeOptions]); 
+  }, [tasks, selectedDate, viewWindow, effectiveTaskTypeOptions]); 
 
 
   useEffect(() => {
@@ -227,49 +223,12 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
     const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
 
-    if (currentMinutesRelativeToSelectedDayStart >= xAxisDomain[0] && currentMinutesRelativeToSelectedDayStart <= xAxisDomain[1]) {
+    if (currentMinutesRelativeToSelectedDayStart >= viewWindow[0] && currentMinutesRelativeToSelectedDayStart <= viewWindow[1]) {
       setCurrentTimeLinePosition(currentMinutesRelativeToSelectedDayStart);
     } else {
       setCurrentTimeLinePosition(null); 
     }
-  }, [selectedDate, xAxisDomain, tasks, refreshKey]);
-
-  useEffect(() => {
-    if (currentTimeLinePosition === null || !chartData.length || !isClient) {
-      return;
-    }
-
-    const newPlayedIds = new Set(playedChimeTaskIds);
-    let soundPlayedThisCycle = false;
-
-    chartData.forEach((taskDataPoint) => {
-      const taskEffectiveStartMinutes = taskDataPoint.timeRange[0];
-
-      if (
-        taskEffectiveStartMinutes <= currentTimeLinePosition &&
-        !playedChimeTaskIds.has(taskDataPoint.id)
-      ) {
-        try {
-          const audio = new Audio(CHIME_SOUND_DATA_URI);
-          audio.play().catch(e => console.warn("Audio play failed (user gesture may be needed for sound):", e));
-          newPlayedIds.add(taskDataPoint.id);
-          soundPlayedThisCycle = true;
-        } catch (e) {
-          console.error("Error playing chime sound:", e);
-        }
-      }
-    });
-
-    if (soundPlayedThisCycle) {
-      setPlayedChimeTaskIds(newPlayedIds);
-    }
-  }, [currentTimeLinePosition, chartData, playedChimeTaskIds, isClient]);
-
-  useEffect(() => {
-    if (isClient) { 
-        setPlayedChimeTaskIds(new Set<string>());
-    }
-  }, [selectedDate, tasks, viewWindow, isClient]);
+  }, [selectedDate, viewWindow, tasks, refreshKey]);
 
 
   const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80; 
@@ -365,7 +324,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 <XAxis
                   type="number"
                   dataKey="timeRange[0]" 
-                  domain={xAxisDomain} 
+                  domain={viewWindow} 
                   tickFormatter={xAxisTickFormatter} 
                   label={{ value: "Time (UTC)", position: "insideBottom", offset: -10, dy: 10 }}
                   allowDecimals={false}
@@ -436,3 +395,4 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
+
