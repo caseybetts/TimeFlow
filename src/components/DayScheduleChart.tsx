@@ -198,7 +198,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + totalEffectiveDurationMinutes; 
 
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
-      const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
+      const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - `;
       const taskNameForAxisDisplay = `${taskNameDisplay.substring(0,25)}${taskNameDisplay.length > 25 ? '...' : ''} (${task.spacecraft})`;
 
 
