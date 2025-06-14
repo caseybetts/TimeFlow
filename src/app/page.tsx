@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { TaskForm } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
 import type { Task, TaskType, Spacecraft } from "@/types";
-// TASK_TYPES import is no longer needed here directly for CSV validation
 import { SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +26,7 @@ export default function HomePage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false); // Initialized to false
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const { toast } = useToast();
   const [selectedDateForChart, setSelectedDateForChart] = useState(new Date());
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
@@ -267,7 +266,7 @@ export default function HomePage() {
         try {
           const csvSpacecraft = values[colIndices.spacecraft] as Spacecraft;
           const csvStartTime = values[colIndices.startTime];
-          const csvTaskType = values[colIndices.type] as TaskType; // This will be validated against effectiveTaskTypeOptions
+          const csvTaskType = values[colIndices.type] as TaskType;
 
           if (!SPACECRAFT_OPTIONS.includes(csvSpacecraft)) {
             errors.push(`Row ${i + 1}: Invalid spacecraft "${csvSpacecraft}".`);
@@ -470,3 +469,4 @@ export default function HomePage() {
   );
 }
 
+    
