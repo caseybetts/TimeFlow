@@ -28,6 +28,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 
+// A short, simple "pluck" or "chime" like sound as a Base64 encoded WAV file.
+// This sound is in the public domain or generated to be royalty-free.
+const CHIME_SOUND_DATA_URI = "data:audio/wav;base64,UklGRlMMAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUkMAAB9AAACAQMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2OjqCio6SlpqeoqaqrrK2ur7Cxsrc=";
+
+
 interface DayScheduleChartProps {
   tasks: Task[];
   selectedDate: Date;
@@ -76,7 +81,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     }
 
     const task = data.originalTask;
-    const taskTypeDetailsEffective = getTaskTypeDetails(task.type, DEFAULT_TASK_TYPE_OPTIONS); // Use non-hook version here for simplicity or pass effectiveTaskTypeOptions
+    const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Use hook here
+    const taskTypeDetailsEffective = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
     const taskNameDisplay = task.name || `${taskTypeDetailsEffective?.label || task.type} - ${task.spacecraft}`;
     const coreStartTime = new Date(task.startTime);
     const formattedCoreStartTime = formatTaskTime(coreStartTime.toISOString());
@@ -95,8 +101,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p style={{ fontWeight: '600', margin: '0 0 8px 0', borderBottom: '1px solid hsl(var(--border))', paddingBottom: '8px' }}>
           {taskNameDisplay} <span style={{opacity: 0.7}}>({task.isCompleted ? "Completed" : "Pending"})</span>
         </p>
+         <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Core Starts:</span> {formattedCoreStartTime}</p>
         <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Spacecraft:</span> {task.spacecraft}</p>
-        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Core Starts:</span> {formattedCoreStartTime}</p>
         <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Pre-Action:</span> {task.preActionDuration} min</p>
         <p style={{ margin: '0' }}><span style={{fontWeight: '500'}}>Post-Action:</span> {task.postActionDuration} min</p>
       </div>
@@ -106,16 +112,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const MIN_SLIDER_MINUTES = 0;
-const MAX_SLIDER_MINUTES = 48 * 60; // Allows up to a 48-hour window, though UI limits to 24hr of selectedDate + 24hr into next
-const MIN_WINDOW_DURATION_MINUTES = 30; // Minimum 30-minute window
-const DEFAULT_INITIAL_WINDOW_MINUTES: [number, number] = [0 * 60, 24 * 60]; // Default to full 24h of selectedDate
+const MAX_SLIDER_MINUTES = 48 * 60; 
+const MIN_WINDOW_DURATION_MINUTES = 30; 
+const DEFAULT_INITIAL_WINDOW_MINUTES: [number, number] = [0 * 60, 24 * 60]; 
 
 export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps) {
   const [isClient, setIsClient] = useState(false);
-  const { effectiveTaskTypeOptions } = useTaskTypeConfig(); // Hook for dynamic task types
+  const { effectiveTaskTypeOptions } = useTaskTypeConfig(); 
   const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
   const [viewWindow, setViewWindow] = useState<[number, number]>(DEFAULT_INITIAL_WINDOW_MINUTES);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [playedChimeTaskIds, setPlayedChimeTaskIds] = useState(new Set<string>());
 
 
   useEffect(() => {
@@ -123,42 +130,73 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   }, []);
 
   const xAxisDomain: [number, number] = useMemo(() => {
-    // viewWindow is [startMinutesRelativeToSelectedDayStart, endMinutesRelativeToSelectedDayStart]
     return viewWindow;
   }, [viewWindow]);
 
 
   useEffect(() => {
-    // This effect calculates the "Now" line's position
-    const todayUTC = new Date(); // Current time in UTC
-    const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate()); // Start of selectedDate in UTC ms
+    const todayUTC = new Date(); 
+    const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate()); 
 
-    const nowEpoch = todayUTC.getTime(); // Current time in UTC ms
+    const nowEpoch = todayUTC.getTime(); 
 
-    // Calculate "now" in minutes relative to the start of the selectedDate (UTC)
     const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
 
-    // Check if "now" is within the current xAxisDomain (which is also relative to selectedDate start)
     if (currentMinutesRelativeToSelectedDayStart >= xAxisDomain[0] && currentMinutesRelativeToSelectedDayStart <= xAxisDomain[1]) {
       setCurrentTimeLinePosition(currentMinutesRelativeToSelectedDayStart);
     } else {
-      setCurrentTimeLinePosition(null); // "Now" is outside the current view
+      setCurrentTimeLinePosition(null); 
     }
-  // Rerun when selectedDate, the chart's view window (xAxisDomain), tasks, or refreshKey change
   }, [selectedDate, xAxisDomain, tasks, refreshKey]);
+
+  // Effect to play chime sounds
+  useEffect(() => {
+    if (currentTimeLinePosition === null || !chartData.length || !isClient) {
+      return;
+    }
+
+    const newPlayedIds = new Set(playedChimeTaskIds);
+    let soundPlayedThisCycle = false;
+
+    chartData.forEach((taskDataPoint) => {
+      const taskEffectiveStartMinutes = taskDataPoint.timeRange[0]; // Start of the bar on the chart
+
+      if (
+        taskEffectiveStartMinutes <= currentTimeLinePosition &&
+        !playedChimeTaskIds.has(taskDataPoint.id)
+      ) {
+        try {
+          const audio = new Audio(CHIME_SOUND_DATA_URI);
+          audio.play().catch(e => console.warn("Audio play failed (user gesture may be needed for sound):", e));
+          newPlayedIds.add(taskDataPoint.id);
+          soundPlayedThisCycle = true;
+        } catch (e) {
+          console.error("Error playing chime sound:", e);
+        }
+      }
+    });
+
+    if (soundPlayedThisCycle) {
+      setPlayedChimeTaskIds(newPlayedIds);
+    }
+  }, [currentTimeLinePosition, chartData, playedChimeTaskIds, isClient]);
+
+  // Effect to reset played chimes when context changes (e.g., date, tasks, view window)
+  useEffect(() => {
+    if (isClient) { // Only run client-side
+        setPlayedChimeTaskIds(new Set<string>());
+    }
+  }, [selectedDate, tasks, viewWindow, isClient]);
 
 
   const chartConfig = useMemo(() => {
-    // Build chartConfig based on effectiveTaskTypeOptions (dynamic)
     return effectiveTaskTypeOptions.reduce((acc, option) => {
-      const key = taskValueToChartKey(option.value); // e.g., "fsv", "rtp"
-      let color = "hsl(var(--muted))"; // Default color
+      const key = taskValueToChartKey(option.value); 
+      let color = "hsl(var(--muted))"; 
 
-      // Find the base default definition for this task type value
       const defaultType = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
 
       if (defaultType) {
-        // Assign chart-specific theme colors based on the *original* task type value
         switch (defaultType.value) {
           case "fsv":
             color = "hsl(var(--chart-1))";
@@ -172,18 +210,15 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
           case "appointment":
             color = "hsl(var(--chart-4))";
             break;
-          // Add more cases here if you have more default task types with specific chart colors
           default:
-            // Use the color defined in defaultType.color if no specific chart color mapping
-            // This part might be redundant if all defaults are covered above or use muted
             break;
         }
       }
 
       acc[key] = {
-        label: option.label, // Use the (potentially user-customized) label
+        label: option.label, 
         color: color,
-        icon: option.icon || defaultType?.icon // Use configured icon or fallback to default
+        icon: option.icon || defaultType?.icon 
       };
       return acc;
     }, {} as ChartConfig);
@@ -191,28 +226,22 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
 
   const chartData = useMemo(() => {
-    // These are minutes relative to the start of selectedDate (UTC 00:00)
     const viewWindowStartMinutesUTC = xAxisDomain[0];
     const viewWindowEndMinutesUTC = xAxisDomain[1];
 
-    // Absolute start of selectedDate in UTC milliseconds
     const selectedDateEpochStartMs = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate());
 
-    // Absolute UTC millisecond boundaries of the chart's current view
     const viewWindowStartMs = selectedDateEpochStartMs + viewWindowStartMinutesUTC * 60000;
     const viewWindowEndMs = selectedDateEpochStartMs + viewWindowEndMinutesUTC * 60000;
 
-    // Filter tasks that fall within the absolute view window
     const tasksInView = tasks.filter(task => {
-      const taskCoreStartMs = new Date(task.startTime).getTime(); // Core task start in UTC ms
-      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000; // Includes pre-action
-      const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000; // Includes core (1 min) and post-action
+      const taskCoreStartMs = new Date(task.startTime).getTime(); 
+      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000; 
+      const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000; 
 
-      // Task is in view if its effective span overlaps with the view window
       return taskEffectiveStartMs < viewWindowEndMs && taskEffectiveEndMs > viewWindowStartMs;
     });
 
-    // Sort tasks for consistent Y-axis ordering
      tasksInView.sort((a,b) => {
         const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
         const effectiveStartTimeB = new Date(b.startTime).getTime() - (b.preActionDuration * 60000);
@@ -221,13 +250,12 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
     return tasksInView.map((task) => {
       const taskCoreStartMs = new Date(task.startTime).getTime();
-      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000; // Start of the bar (UTC ms)
+      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000; 
 
-      // Calculate bar start time in minutes relative to selectedDate UTC 00:00
       let taskStartMinutesRelativeToDay = (taskEffectiveStartMs - selectedDateEpochStartMs) / 60000;
 
       const totalEffectiveDurationMinutes = task.preActionDuration + task.duration + task.postActionDuration;
-      let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + totalEffectiveDurationMinutes; // End of the bar
+      let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + totalEffectiveDurationMinutes; 
 
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
       const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
@@ -237,22 +265,19 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       return {
         id: task.id,
         taskNameForAxis: taskNameForAxisDisplay,
-        // timeRange is [startMinuteRelativeToDay, endMinuteRelativeToDay] for the bar
         timeRange: [taskStartMinutesRelativeToDay, taskEndMinutesRelativeToDay] as [number, number],
-        fillColorKey: task.type, // e.g., "fsv", "rtp" for chartConfig lookup
+        fillColorKey: task.type, 
         originalTask: task,
         tooltipLabel: taskNameDisplay,
         isCompleted: task.isCompleted || false,
       };
-    }).filter(Boolean) as ProcessedChartDataPoint[]; // filter(Boolean) might not be necessary if map always returns object
-  }, [tasks, selectedDate, xAxisDomain, effectiveTaskTypeOptions]); // Ensure all dependencies are listed
+    }).filter(Boolean) as ProcessedChartDataPoint[]; 
+  }, [tasks, selectedDate, xAxisDomain, effectiveTaskTypeOptions]); 
 
-  // Dynamically calculate Y-axis width based on the longest task name
-  const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80; // Heuristic for width
+  const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80; 
 
   const xAxisTickFormatter = (value: number) => {
-    // 'value' is minutes from the start of selectedDate (UTC 00:00)
-    const displayHourUTC = Math.floor(value / 60) % 24; // Hour in UTC
+    const displayHourUTC = Math.floor(value / 60) % 24; 
     const minute = value % 60;
     return `${String(displayHourUTC).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   };
@@ -260,12 +285,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const handleSliderChange = (newRange: [number, number]) => {
     let [newStart, newEnd] = newRange;
 
-    // Enforce minimum window duration
     if (newEnd - newStart < MIN_WINDOW_DURATION_MINUTES) {
-      // Prioritize the thumb being moved
-      if (newEnd !== viewWindow[1]) { // If end thumb moved
+      if (newEnd !== viewWindow[1]) { 
         newStart = Math.max(MIN_SLIDER_MINUTES, newEnd - MIN_WINDOW_DURATION_MINUTES);
-      } else { // If start thumb moved (or both, though slider typically moves one)
+      } else { 
         newEnd = Math.min(MAX_SLIDER_MINUTES, newStart + MIN_WINDOW_DURATION_MINUTES);
       }
     }
@@ -273,11 +296,10 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   };
 
   const handleRefreshNowLine = () => {
-    setRefreshKey(prevKey => prevKey + 1); // Trigger re-calculation of "Now" line
+    setRefreshKey(prevKey => prevKey + 1); 
   };
 
   if (!isClient) {
-    // Basic skeleton loader for server-side rendering or before client hydration
     return (
       <Card>
         <CardHeader>
@@ -287,7 +309,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             Times are displayed in UTC. Use slider to adjust view.
           </CardDescription>
           <div className="pt-4 space-y-2">
-            {/* Skeleton for slider */}
             <div className="h-6 w-full bg-muted rounded animate-pulse" />
           </div>
         </CardHeader>
@@ -318,9 +339,9 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             </Label>
             <Slider
               id="time-range-slider"
-              min={MIN_SLIDER_MINUTES} // 0 minutes
-              max={MAX_SLIDER_MINUTES} // 24*60*2 = 2880 minutes for up to 48hr view relative to selectedDate start
-              step={15} // 15-minute increments
+              min={MIN_SLIDER_MINUTES} 
+              max={MAX_SLIDER_MINUTES} 
+              step={15} 
               value={viewWindow}
               onValueChange={handleSliderChange}
               className="w-full"
@@ -329,45 +350,43 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
         </div>
       </CardHeader>
       <CardContent className="min-h-[250px] flex flex-col justify-center">
-        {/* Conditional rendering for no tasks / no "Now" line vs. chart */}
         { (chartData.length === 0 && currentTimeLinePosition === null && isClient) ?
             <p className="text-muted-foreground text-center py-8">
               No tasks scheduled for this period on {selectedDate.toLocaleDateString('en-CA', { timeZone: 'UTC' })}.
             </p>
           :
-          // ChartContainer defines dynamic height based on number of tasks
           <ChartContainer config={chartConfig} className="min-h-[200px] h-[calc(40px*var(--visible-tasks,10)+100px)] max-h-[800px] w-full" style={{ '--visible-tasks': Math.max(1, chartData.length) } as React.CSSProperties}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 layout="vertical"
-                data={chartData} // Processed data for the chart
-                margin={{ top: 5, right: 30, left: Math.min(250, yAxisWidth), bottom: 20 }} // Dynamic left margin
-                barCategoryGap="20%" // Spacing between bars
+                data={chartData} 
+                margin={{ top: 5, right: 30, left: Math.min(250, yAxisWidth), bottom: 20 }} 
+                barCategoryGap="20%" 
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
                 <XAxis
                   type="number"
-                  dataKey="timeRange[0]" // This is just to satisfy Recharts, actual rendering is tricky with range bars
-                  domain={xAxisDomain} // [startMinute, endMinute] relative to selectedDate
-                  tickFormatter={xAxisTickFormatter} // Formats tick to HH:mm UTC
+                  dataKey="timeRange[0]" 
+                  domain={xAxisDomain} 
+                  tickFormatter={xAxisTickFormatter} 
                   label={{ value: "Time (UTC)", position: "insideBottom", offset: -10, dy: 10 }}
                   allowDecimals={false}
-                  scale="time" // Treat values as time-based
-                  interval="preserveStartEnd" // Show first and last tick
-                  minTickGap={30} // Minimum pixels between ticks
+                  scale="time" 
+                  interval="preserveStartEnd" 
+                  minTickGap={30} 
                 />
                 <YAxis
                   type="category"
-                  dataKey="id" // Use unique task ID for Y-axis category
-                  tickFormatter={(tickValue) => chartData.find(d => d.id === tickValue)?.taskNameForAxis || ''} // Display task name
-                  width={yAxisWidth} // Dynamic width
-                  interval={0} // Show all ticks (task names)
-                  domain={chartData.length > 0 ? undefined : ['No Tasks']} // Handle empty state
-                  ticks={chartData.length > 0 ? chartData.map(d => d.id) : []} // Explicitly set ticks
+                  dataKey="id" 
+                  tickFormatter={(tickValue) => chartData.find(d => d.id === tickValue)?.taskNameForAxis || ''} 
+                  width={yAxisWidth} 
+                  interval={0} 
+                  domain={chartData.length > 0 ? undefined : ['No Tasks']} 
+                  ticks={chartData.length > 0 ? chartData.map(d => d.id) : []} 
                 />
                 <Tooltip
-                  cursor={{ fill: 'hsla(var(--muted), 0.5)' }} // Styling for hover cursor
-                  content={<CustomTooltip />} // Use our custom tooltip
+                  cursor={{ fill: 'hsla(var(--muted), 0.5)' }} 
+                  content={<CustomTooltip />} 
                   wrapperStyle={{ zIndex: 1100 }}
                 />
                 <Legend content={<ChartLegendContent />} />
@@ -378,16 +397,13 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                       let colorForCell = chartConfig[cellColorKey]?.color || "hsl(var(--muted))";
                       
                       if (entry.isCompleted) {
-                        // Modify color for completed tasks to be dimmer
-                        // Assumes colorForCell is in 'hsl(value)' or 'hsl(var(--css-var))' format
-                        if (colorForCell.startsWith("hsl(var(--")) { // e.g. hsl(var(--chart-1))
-                           const variablePart = colorForCell.substring(4, colorForCell.length - 1); // var(--chart-1)
-                           colorForCell = `hsla(${variablePart}, 0.5)`; // hsla(var(--chart-1), 0.5)
-                        } else if (colorForCell.startsWith("hsl(")) { // e.g. hsl(220 70% 50%)
-                           const valuesPart = colorForCell.substring(4, colorForCell.length - 1); // 220 70% 50%
-                           colorForCell = `hsla(${valuesPart}, 0.5)`; // hsla(220 70% 50%, 0.5)
+                        if (colorForCell.startsWith("hsl(var(--")) { 
+                           const variablePart = colorForCell.substring(4, colorForCell.length - 1); 
+                           colorForCell = `hsla(${variablePart}, 0.5)`; 
+                        } else if (colorForCell.startsWith("hsl(")) { 
+                           const valuesPart = colorForCell.substring(4, colorForCell.length - 1); 
+                           colorForCell = `hsla(${valuesPart}, 0.5)`; 
                         }
-                        // If it's a non-HSL color, dimming is harder. For now, it relies on HSL format.
                       }
                       
                       return (
@@ -398,19 +414,19 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 )}
                  {currentTimeLinePosition !== null && (
                   <ReferenceLine
-                    x={currentTimeLinePosition} // Position in minutes relative to selectedDate start
-                    stroke="hsl(var(--destructive))" // Red color for "Now" line
+                    x={currentTimeLinePosition} 
+                    stroke="hsl(var(--destructive))" 
                     strokeWidth={2}
-                    strokeDasharray="8 4" // Dashed line style
-                    ifOverflow="hidden" // Don't draw outside chart area
+                    strokeDasharray="8 4" 
+                    ifOverflow="hidden" 
                     label={{
                       value: "Now",
                       position: "insideTopRight",
                       fill: "hsl(var(--destructive))",
                       fontSize: 12,
                       fontWeight: "bold",
-                      dy: -10, // Offset Y
-                      dx: 10   // Offset X
+                      dy: -10, 
+                      dx: 10   
                     }}
                   />
                 )}
@@ -422,3 +438,4 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
+
