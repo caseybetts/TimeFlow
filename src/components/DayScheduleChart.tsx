@@ -96,7 +96,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           boxShadow: '0 4px 6px hsla(var(--foreground) / 0.1)',
           color: 'hsl(var(--foreground))',
           fontSize: '0.875rem',
-          zIndex: 1000
+          zIndex: 1000 // Ensure tooltip is on top
         }}>
         <p style={{ fontWeight: '600', margin: '0 0 8px 0', borderBottom: '1px solid hsl(var(--border))', paddingBottom: '8px' }}>
           {taskNameDisplay} <span style={{opacity: 0.7}}>({task.isCompleted ? "Completed" : "Pending"})</span>
@@ -132,62 +132,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const xAxisDomain: [number, number] = useMemo(() => {
     return viewWindow;
   }, [viewWindow]);
-
-
-  useEffect(() => {
-    const todayUTC = new Date(); 
-    const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate()); 
-
-    const nowEpoch = todayUTC.getTime(); 
-
-    const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
-
-    if (currentMinutesRelativeToSelectedDayStart >= xAxisDomain[0] && currentMinutesRelativeToSelectedDayStart <= xAxisDomain[1]) {
-      setCurrentTimeLinePosition(currentMinutesRelativeToSelectedDayStart);
-    } else {
-      setCurrentTimeLinePosition(null); 
-    }
-  }, [selectedDate, xAxisDomain, tasks, refreshKey]);
-
-  // Effect to play chime sounds
-  useEffect(() => {
-    if (currentTimeLinePosition === null || !chartData.length || !isClient) {
-      return;
-    }
-
-    const newPlayedIds = new Set(playedChimeTaskIds);
-    let soundPlayedThisCycle = false;
-
-    chartData.forEach((taskDataPoint) => {
-      const taskEffectiveStartMinutes = taskDataPoint.timeRange[0]; // Start of the bar on the chart
-
-      if (
-        taskEffectiveStartMinutes <= currentTimeLinePosition &&
-        !playedChimeTaskIds.has(taskDataPoint.id)
-      ) {
-        try {
-          const audio = new Audio(CHIME_SOUND_DATA_URI);
-          audio.play().catch(e => console.warn("Audio play failed (user gesture may be needed for sound):", e));
-          newPlayedIds.add(taskDataPoint.id);
-          soundPlayedThisCycle = true;
-        } catch (e) {
-          console.error("Error playing chime sound:", e);
-        }
-      }
-    });
-
-    if (soundPlayedThisCycle) {
-      setPlayedChimeTaskIds(newPlayedIds);
-    }
-  }, [currentTimeLinePosition, chartData, playedChimeTaskIds, isClient]);
-
-  // Effect to reset played chimes when context changes (e.g., date, tasks, view window)
-  useEffect(() => {
-    if (isClient) { // Only run client-side
-        setPlayedChimeTaskIds(new Set<string>());
-    }
-  }, [selectedDate, tasks, viewWindow, isClient]);
-
 
   const chartConfig = useMemo(() => {
     return effectiveTaskTypeOptions.reduce((acc, option) => {
@@ -273,6 +217,62 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       };
     }).filter(Boolean) as ProcessedChartDataPoint[]; 
   }, [tasks, selectedDate, xAxisDomain, effectiveTaskTypeOptions]); 
+
+
+  useEffect(() => {
+    const todayUTC = new Date(); 
+    const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate()); 
+
+    const nowEpoch = todayUTC.getTime(); 
+
+    const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
+
+    if (currentMinutesRelativeToSelectedDayStart >= xAxisDomain[0] && currentMinutesRelativeToSelectedDayStart <= xAxisDomain[1]) {
+      setCurrentTimeLinePosition(currentMinutesRelativeToSelectedDayStart);
+    } else {
+      setCurrentTimeLinePosition(null); 
+    }
+  }, [selectedDate, xAxisDomain, tasks, refreshKey]);
+
+  // Effect to play chime sounds
+  useEffect(() => {
+    if (currentTimeLinePosition === null || !chartData.length || !isClient) {
+      return;
+    }
+
+    const newPlayedIds = new Set(playedChimeTaskIds);
+    let soundPlayedThisCycle = false;
+
+    chartData.forEach((taskDataPoint) => {
+      const taskEffectiveStartMinutes = taskDataPoint.timeRange[0]; // Start of the bar on the chart
+
+      if (
+        taskEffectiveStartMinutes <= currentTimeLinePosition &&
+        !playedChimeTaskIds.has(taskDataPoint.id)
+      ) {
+        try {
+          const audio = new Audio(CHIME_SOUND_DATA_URI);
+          audio.play().catch(e => console.warn("Audio play failed (user gesture may be needed for sound):", e));
+          newPlayedIds.add(taskDataPoint.id);
+          soundPlayedThisCycle = true;
+        } catch (e) {
+          console.error("Error playing chime sound:", e);
+        }
+      }
+    });
+
+    if (soundPlayedThisCycle) {
+      setPlayedChimeTaskIds(newPlayedIds);
+    }
+  }, [currentTimeLinePosition, chartData, playedChimeTaskIds, isClient]);
+
+  // Effect to reset played chimes when context changes (e.g., date, tasks, view window)
+  useEffect(() => {
+    if (isClient) { // Only run client-side
+        setPlayedChimeTaskIds(new Set<string>());
+    }
+  }, [selectedDate, tasks, viewWindow, isClient]);
+
 
   const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80; 
 
