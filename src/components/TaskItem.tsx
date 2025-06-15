@@ -12,7 +12,7 @@ import {
   getTaskTypeColorClass, 
   getTaskTypeIcon,       
   formatTaskTime,
-  calculateEndTime,
+  calculateEndTime, // We can use this for adding and subtracting (by using negative duration)
   getTaskTypeDetails,    
 } from "@/lib/task-utils";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -33,27 +33,29 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
 
   const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
 
-  const coreTaskStartTimeStr = task.startTime;
-  // task.duration is now always 1
-  const coreTaskEndTimeStr = calculateEndTime(coreTaskStartTimeStr, task.duration); 
+  // Core event time
+  const coreEventTimeISO = task.startTime;
 
-  const preActionStartTimeStr = task.preActionDuration > 0
-    ? calculateEndTime(coreTaskStartTimeStr, -task.preActionDuration)
-    : "";
+  // Calculate actual start and end of the entire activity
+  const overallStartTimeISO = calculateEndTime(coreEventTimeISO, -task.preActionDuration);
+  const overallEndTimeISO = calculateEndTime(coreEventTimeISO, task.postActionDuration);
 
-  const postActionEndTimeStr = task.postActionDuration > 0
-    ? calculateEndTime(coreTaskEndTimeStr, task.postActionDuration)
-    : "";
+  // Pre-Action phase timings
+  const preActionPhaseStartTimeISO = overallStartTimeISO;
+  const preActionPhaseEndTimeISO = coreEventTimeISO;
 
-  const dateInUTC = new Date(task.startTime).toLocaleDateString('en-US', {
+  // Post-Action phase timings
+  const postActionPhaseStartTimeISO = coreEventTimeISO;
+  const postActionPhaseEndTimeISO = overallEndTimeISO;
+  
+  const dateInUTC = new Date(overallStartTimeISO).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC'
   });
 
-  const overallStartTimeForOverdueCheck = task.preActionDuration > 0 ? preActionStartTimeStr : coreTaskStartTimeStr;
-  const isOverdue = new Date(overallStartTimeForOverdueCheck) < new Date() && !task.isCompleted;
+  const isOverdue = new Date(overallEndTimeISO) < new Date() && !task.isCompleted;
 
   const taskDisplayLabel = taskTypeDetails?.label || task.type;
   const taskNameDisplay = task.name || `${taskDisplayLabel} - ${task.spacecraft}`;
@@ -120,25 +122,33 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
             <div className="flex items-center text-muted-foreground">
               <Clock className="mr-2 h-4 w-4 text-primary opacity-70" />
               <span>
-                {taskTypeDetails?.preActionLabel || 'Pre-Action'}: {task.preActionDuration} min
-                ({formatTaskTime(preActionStartTimeStr)} - {formatTaskTime(coreTaskStartTimeStr)})
+                Preparation: {task.preActionDuration} min
+                ({formatTaskTime(preActionPhaseStartTimeISO)} - {formatTaskTime(preActionPhaseEndTimeISO)})
               </span>
             </div>
           )}
-          <div className="flex items-center font-medium">
-            <Clock className="mr-2 h-4 w-4 text-primary" />
-            <span>
-              Core Task: {task.duration} min 
-              ({formatTaskTime(coreTaskStartTimeStr)} - {formatTaskTime(coreTaskEndTimeStr)})
-            </span>
-          </div>
+          
+          {(task.preActionDuration > 0 || task.postActionDuration > 0) && (
+             <div className="flex items-center font-medium">
+                <Clock className="mr-2 h-4 w-4 text-primary" />
+                <span>Core Event Time: {formatTaskTime(coreEventTimeISO)}</span>
+             </div>
+          )}
+
           {task.postActionDuration > 0 && (
             <div className="flex items-center text-muted-foreground">
               <Clock className="mr-2 h-4 w-4 text-primary opacity-70" />
               <span>
-                {taskTypeDetails?.postActionLabel || 'Post-Action'}: {task.postActionDuration} min
-                ({formatTaskTime(coreTaskEndTimeStr)} - {formatTaskTime(postActionEndTimeStr)})
+                Follow-up: {task.postActionDuration} min
+                ({formatTaskTime(postActionPhaseStartTimeISO)} - {formatTaskTime(postActionPhaseEndTimeISO)})
               </span>
+            </div>
+          )}
+
+          {task.preActionDuration === 0 && task.postActionDuration === 0 && (
+            <div className="flex items-center font-medium">
+              <Clock className="mr-2 h-4 w-4 text-primary" />
+              <span>Event at {formatTaskTime(coreEventTimeISO)}</span>
             </div>
           )}
         </div>

@@ -46,8 +46,9 @@ const taskFormSchema = z.object({
   }, {
     message: "Invalid start time format. Please ensure it's a complete date and time.",
   }),
-  // duration is removed - will be fixed to 1 min
   type: z.enum(TASK_TYPES),
+  preActionDuration: z.coerce.number().min(0, "Duration must be non-negative.").default(0),
+  postActionDuration: z.coerce.number().min(0, "Duration must be non-negative.").default(0),
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
@@ -74,6 +75,8 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
   const defaultInitialUtcTimeForInput = getUtcDateTimeLocalString(new Date());
   const defaultTaskType = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
   const defaultSpacecraft = SPACECRAFT_OPTIONS[0];
+  const defaultTaskTypeDetails = getTaskTypeDetails(defaultTaskType, effectiveTaskTypeOptions);
+
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -83,27 +86,33 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           type: initialTask.type,
-          // duration removed
+          preActionDuration: initialTask.preActionDuration,
+          postActionDuration: initialTask.postActionDuration,
         }
       : {
           name: "",
           spacecraft: defaultSpacecraft,
           startTime: defaultInitialUtcTimeForInput,
           type: defaultTaskType,
-          // duration removed
+          preActionDuration: defaultTaskTypeDetails?.preActionDuration ?? 0,
+          postActionDuration: defaultTaskTypeDetails?.postActionDuration ?? 0,
         },
   });
+
+  const selectedTaskType = form.watch("type");
 
   useEffect(() => {
     if (isOpen) {
       const defaultTypeForNew = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
+      const defaultDetailsForNew = getTaskTypeDetails(defaultTypeForNew, effectiveTaskTypeOptions);
       if (initialTask) {
         form.reset({
           name: initialTask.name || "",
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           type: initialTask.type,
-          // duration removed
+          preActionDuration: initialTask.preActionDuration,
+          postActionDuration: initialTask.postActionDuration,
         });
       } else {
         form.reset({
@@ -111,11 +120,23 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           spacecraft: defaultSpacecraft,
           startTime: getUtcDateTimeLocalString(new Date()),
           type: defaultTypeForNew,
-          // duration removed
+          preActionDuration: defaultDetailsForNew?.preActionDuration ?? 0,
+          postActionDuration: defaultDetailsForNew?.postActionDuration ?? 0,
         });
       }
     }
   }, [initialTask, form, isOpen, effectiveTaskTypeOptions, defaultSpacecraft]);
+
+  useEffect(() => {
+    if (!form.formState.isDirty && !initialTask) { // Only update if form is not dirty (user hasn't typed) and it's a new task
+        const taskTypeDetails = getTaskTypeDetails(selectedTaskType, effectiveTaskTypeOptions);
+        if (taskTypeDetails) {
+            form.setValue("preActionDuration", taskTypeDetails.preActionDuration, { shouldValidate: true });
+            form.setValue("postActionDuration", taskTypeDetails.postActionDuration, { shouldValidate: true });
+        }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTaskType, effectiveTaskTypeOptions, form.setValue, initialTask]);
 
 
   const handleSubmit = (values: TaskFormValues) => {
@@ -131,10 +152,9 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       name: taskName,
       spacecraft: values.spacecraft,
       startTime: new Date(values.startTime + 'Z').toISOString(),
-      duration: 1, // Core duration is now fixed at 1 minute
       type: values.type,
-      preActionDuration: selectedTaskTypeDetails?.preActionDuration || 0,
-      postActionDuration: selectedTaskTypeDetails?.postActionDuration || 0,
+      preActionDuration: values.preActionDuration,
+      postActionDuration: values.postActionDuration,
       isCompleted: initialTask?.isCompleted || false,
     };
     onSubmit(task);
@@ -143,14 +163,14 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] bg-card">
+      <DialogContent className="sm:max-w-md bg-card">
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">
             {initialTask ? "Edit Task" : "Add New Task"}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
             <FormField
               control={form.control}
               name="name"
@@ -193,7 +213,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
               name="startTime"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Start Time (UTC)</FormLabel>
+                  <FormLabel>Core Event Time (UTC)</FormLabel>
                   <FormControl>
                     <Input type="datetime-local" {...field} />
                   </FormControl>
@@ -201,7 +221,6 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
                 </FormItem>
               )}
             />
-            {/* Duration field removed from UI */}
             <FormField
               control={form.control}
               name="type"
@@ -225,6 +244,32 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="preActionDuration"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pre-Action Duration (min)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" placeholder="e.g., 10" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="postActionDuration"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Post-Action Duration (min)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" placeholder="e.g., 5" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

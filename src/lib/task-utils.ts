@@ -1,48 +1,40 @@
 
-import type { TaskType, TaskTypeOption, UserTaskTypesConfig, UserEditableTaskTypeFields } from '@/types';
-import { Briefcase, User, ShoppingCart, CalendarDays, type LucideIcon } from 'lucide-react';
+import type { TaskType, TaskTypeOption, UserTaskTypesConfig } from '@/types';
+import { SatelliteDish, Satellite, Signal, CalendarClock, type LucideIcon } from 'lucide-react';
 
 // Base default definitions for task types
 export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
   {
     value: "fsv",
     label: "FSV",
-    icon: Briefcase,
+    icon: SatelliteDish,
     color: "bg-sky-500",
-    preActionDuration: 10,
-    preActionLabel: "Prep",
-    postActionDuration: 5,
-    postActionLabel: "Wrap-up",
+    preActionDuration: 5,
+    postActionDuration: 2,
   },
   {
     value: "rtp",
     label: "RTP",
-    icon: User,
+    icon: Satellite,
     color: "bg-purple-500",
-    preActionDuration: 0,
-    preActionLabel: "",
+    preActionDuration: 30,
     postActionDuration: 0,
-    postActionLabel: "",
   },
   {
     value: "tl",
     label: "TL",
-    icon: ShoppingCart,
+    icon: Signal,
     color: "bg-orange-500",
-    preActionDuration: 5,
-    preActionLabel: "Travel to",
-    postActionDuration: 5,
-    postActionLabel: "Travel from",
+    preActionDuration: 0,
+    postActionDuration: 90,
   },
   {
     value: "appointment",
     label: "Appointment",
-    icon: CalendarDays,
+    icon: CalendarClock,
     color: "bg-teal-500",
-    preActionDuration: 15,
-    preActionLabel: "Travel & Check-in",
-    postActionDuration: 0,
-    postActionLabel: "",
+    preActionDuration: 0,
+    postActionDuration: 30,
   },
 ];
 
@@ -53,9 +45,13 @@ export function getEffectiveTaskTypeOptions(
   return DEFAULT_TASK_TYPE_OPTIONS.map(defaultOption => {
     const userOverrides = userConfig[defaultOption.value];
     if (userOverrides) {
+      // Ensure only valid fields are spread
+      const { label, preActionDuration, postActionDuration } = userOverrides;
       return {
         ...defaultOption,
-        ...userOverrides,
+        label: label ?? defaultOption.label,
+        preActionDuration: preActionDuration ?? defaultOption.preActionDuration,
+        postActionDuration: postActionDuration ?? defaultOption.postActionDuration,
       };
     }
     return defaultOption;
@@ -68,17 +64,20 @@ export function getTaskTypeDetails(type: TaskType, effectiveOptions: readonly Ta
 }
 
 export function formatTaskTime(isoString: string): string {
+  if (!isoString) return "";
   const date = new Date(isoString);
-  return date.toLocaleTimeString('en-US', { // Changed to en-GB for 24-hour format, or use hourCycle
+  return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false, // Ensure 24-hour format
+    hour12: false,
     timeZone: 'UTC'
   }) + ' UTC';
 }
 
 export function calculateEndTime(startTime: string, durationMinutes: number): string {
+  if (!startTime) return "";
   const startDate = new Date(startTime);
+  // Ensure we are operating on UTC dates to avoid timezone shifts during calculations
   const startDateUtc = new Date(Date.UTC(
     startDate.getUTCFullYear(),
     startDate.getUTCMonth(),
@@ -92,7 +91,6 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
   return endDate.toISOString();
 }
 
-// These functions still rely on the 'value' to find the base default for icon/color
 export function getTaskTypeColorClass(type: TaskType): string {
   const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
   return details ? details.color : 'bg-gray-500';
@@ -100,6 +98,7 @@ export function getTaskTypeColorClass(type: TaskType): string {
 
 export function getTaskTypeIcon(type: TaskType): LucideIcon {
   const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
-  return details ? details.icon : Briefcase;
+  // Fallback icon if type not found, though `type` should always be valid
+  return details ? details.icon : Satellite; 
 }
 
