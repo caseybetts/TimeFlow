@@ -147,7 +147,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                       <div className="flex justify-between items-center mb-3">
                         <h4 className="text-lg font-semibold text-primary flex items-center">
                           <defaultOption.icon className="mr-2 h-5 w-5" /> 
-                          Default: {defaultOption.label} (Type: {defaultOption.value})
+                          {defaultOption.label} Default Values
                         </h4>
                         <Button variant="outline" size="sm" onClick={() => handleResetSingleTaskTypeToDefault(defaultOption.value)}>
                             <RotateCcw className="mr-2 h-4 w-4" /> Reset

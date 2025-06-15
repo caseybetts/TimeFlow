@@ -1,48 +1,40 @@
 
 import type { TaskType, TaskTypeOption, UserTaskTypesConfig } from '@/types';
-import { Briefcase, User, ShoppingCart, CalendarDays, type LucideIcon } from 'lucide-react';
+import { SatelliteDish, Satellite, Signal, CalendarClock, type LucideIcon } from 'lucide-react';
 
 // Base default definitions for task types
 export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
   {
     value: "fsv",
     label: "FSV",
-    icon: Briefcase,
+    icon: SatelliteDish,
     color: "bg-sky-500",
     preActionDuration: 10,
-    // preActionLabel: "Prep", // Removed
     postActionDuration: 5,
-    // postActionLabel: "Wrap-up", // Removed
   },
   {
     value: "rtp",
     label: "RTP",
-    icon: User,
+    icon: Satellite,
     color: "bg-purple-500",
     preActionDuration: 0,
-    // preActionLabel: "", // Removed
     postActionDuration: 0,
-    // postActionLabel: "", // Removed
   },
   {
     value: "tl",
     label: "TL",
-    icon: ShoppingCart,
+    icon: Signal,
     color: "bg-orange-500",
     preActionDuration: 5,
-    // preActionLabel: "Travel to", // Removed
     postActionDuration: 5,
-    // postActionLabel: "Travel from", // Removed
   },
   {
     value: "appointment",
     label: "Appointment",
-    icon: CalendarDays,
+    icon: CalendarClock,
     color: "bg-teal-500",
     preActionDuration: 15,
-    // preActionLabel: "Travel & Check-in", // Removed
     postActionDuration: 0,
-    // postActionLabel: "", // Removed
   },
 ];
 
@@ -106,5 +98,7 @@ export function getTaskTypeColorClass(type: TaskType): string {
 
 export function getTaskTypeIcon(type: TaskType): LucideIcon {
   const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
-  return details ? details.icon : Briefcase;
+  // Fallback icon if type not found, though `type` should always be valid
+  return details ? details.icon : Satellite; 
 }
+
