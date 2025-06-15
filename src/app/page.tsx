@@ -9,7 +9,7 @@ import type { Task, TaskType, Spacecraft } from "@/types";
 import { SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download } from "lucide-react"; // Changed Loader2 to LoaderCircle
+import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -402,6 +402,16 @@ export default function HomePage() {
           <DayScheduleChart tasks={tasks} selectedDate={selectedDateForChart} />
         </section>
 
+        <section>
+          <h2 className="text-2xl font-headline font-semibold text-foreground mb-4">Task List</h2>
+          <Timeline
+            tasks={tasks}
+            onEditTask={openEditModal}
+            onDeleteTask={handleDeleteTask}
+            onToggleComplete={handleToggleComplete}
+          />
+        </section>
+
         <SpreadsheetTaskInput onBatchAddTasks={handleBatchAddTasks} />
 
         <Card>
@@ -438,16 +448,6 @@ export default function HomePage() {
             </Button>
           </CardContent>
         </Card>
-
-        <section>
-          <h2 className="text-2xl font-headline font-semibold text-foreground mb-4">Task List</h2>
-          <Timeline
-            tasks={tasks}
-            onEditTask={openEditModal}
-            onDeleteTask={handleDeleteTask}
-            onToggleComplete={handleToggleComplete}
-          />
-        </section>
       </main>
 
       <TaskForm
