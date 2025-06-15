@@ -52,11 +52,13 @@ export default function HomePage() {
       let newDarkModeState = false;
       if (savedTheme) {
         newDarkModeState = savedTheme === 'dark';
-      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      } else if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         newDarkModeState = true;
       }
       setIsDarkMode(newDarkModeState);
-      document.documentElement.classList.toggle('dark', newDarkModeState);
+      if (typeof window !== 'undefined') {
+        document.documentElement.classList.toggle('dark', newDarkModeState);
+      }
     }
   }, [isMounted]);
 
@@ -83,13 +85,12 @@ export default function HomePage() {
 
   const handleBatchAddTasks = (tasksData: Omit<Task, "id" | "isCompleted">[]) => {
     const newTasks: Task[] = tasksData.map(taskData => {
-      const taskTypeDetails = getTaskTypeDetails(taskData.type, effectiveTaskTypeOptions);
+      // For batch add, pre/post durations are already part of tasksData if specified
+      // or will use defaults from task type if not specified by SpreadsheetInput
       return {
         ...taskData,
         id: crypto.randomUUID(),
         isCompleted: false,
-        preActionDuration: taskTypeDetails?.preActionDuration ?? 0,
-        postActionDuration: taskTypeDetails?.postActionDuration ?? 0,
       };
     });
 
@@ -185,7 +186,7 @@ export default function HomePage() {
         escapeCsvField(task.id),
         escapeCsvField(task.name),
         escapeCsvField(task.spacecraft),
-        escapeCsvField(task.startTime),
+        escapeCsvField(task.startTime), // Core event time
         escapeCsvField(task.type),
         escapeCsvField(task.preActionDuration),
         escapeCsvField(task.postActionDuration),
@@ -240,7 +241,7 @@ export default function HomePage() {
         return;
       }
 
-      const headerLine = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const headerLine = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
       const importedTasks: Task[] = [];
       const errors: string[] = [];
 
@@ -255,12 +256,12 @@ export default function HomePage() {
       };
       
       if (colIndices.spacecraft === -1 || colIndices.startTime === -1 || colIndices.type === -1) {
-          errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type.");
+          errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted.");
       }
 
 
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
+        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
         if (values.length < headerLine.length && errors.length === 0) { 
             errors.push(`Row ${i + 1}: Incorrect number of columns. Expected ${headerLine.length}, got ${values.length}.`);
             continue;
@@ -276,8 +277,8 @@ export default function HomePage() {
             errors.push(`Row ${i + 1}: Invalid spacecraft "${csvSpacecraft}".`);
             continue;
           }
-          if (isNaN(Date.parse(csvStartTime))) {
-            errors.push(`Row ${i + 1}: Invalid startTime format "${csvStartTime}".`);
+          if (isNaN(Date.parse(csvStartTime))) { // Expects ISO string from CSV for startTime
+            errors.push(`Row ${i + 1}: Invalid startTime format "${csvStartTime}". Must be ISO 8601 format.`);
             continue;
           }
 
@@ -309,10 +310,10 @@ export default function HomePage() {
             id: crypto.randomUUID(),
             name,
             spacecraft: csvSpacecraft,
-            startTime: new Date(csvStartTime).toISOString(),
+            startTime: new Date(csvStartTime).toISOString(), // Ensure it's stored as ISO
             type: csvTaskType,
-            preActionDuration,
-            postActionDuration,
+            preActionDuration: Math.max(0, preActionDuration),
+            postActionDuration: Math.max(0, postActionDuration),
             isCompleted,
           });
         } catch (e: any) {
@@ -421,11 +422,15 @@ export default function HomePage() {
           <CardHeader>
             <CardTitle>Import Tasks from CSV</CardTitle>
             <CardDescription>
-              Upload a CSV file to import tasks. Ensure your CSV has a header row with columns like:
-              name (optional), spacecraft, startTime (ISO format), type (e.g., fsv, rtp), 
-              preActionDuration (optional), postActionDuration (optional), isCompleted (optional, true/false).
-              The 'id' column from the CSV will be ignored; new IDs are generated.
-              Valid task type values are: {effectiveTaskTypeOptions.map(opt => opt.value).join(', ')}.
+              Upload a CSV file to import tasks. Header row required.
+              Columns: <strong>id</strong> (ignored), <strong>name</strong> (optional), <strong>spacecraft</strong> (required), 
+              <strong>startTime</strong> (required, ISO 8601 UTC format e.g., <code>YYYY-MM-DDTHH:mm:ss.sssZ</code>), 
+              <strong>type</strong> (required), <strong>preActionDuration</strong> (optional, minutes), 
+              <strong>postActionDuration</strong> (optional, minutes), <strong>isCompleted</strong> (optional, true/false).
+              <br />
+              Valid task type values are: {effectiveTaskTypeOptions.map(opt => `"${opt.value}"`).join(', ')}.
+              <br />
+              If pre/post durations are not provided, they default from the task type's settings.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
