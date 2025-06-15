@@ -11,11 +11,10 @@ export interface Task {
   id: string;
   name?: string;
   spacecraft: Spacecraft;
-  startTime: string; // ISO string, represents start of the entire activity (pre-action phase) in UTC
-  // duration: number; // Removed: Core duration is no longer used
+  startTime: string; // ISO string, represents the start of the core event time in UTC
   type: TaskType;
-  preActionDuration: number; // in minutes, duration of the first phase
-  postActionDuration: number; // in minutes, duration of the second phase
+  preActionDuration: number; // in minutes, duration of the phase before startTime
+  postActionDuration: number; // in minutes, duration of the phase after startTime
   isCompleted?: boolean;
 }
 
@@ -25,19 +24,15 @@ export interface TaskTypeOption {
   label: string;
   icon: LucideIcon;
   color: string;
-  preActionDuration: number; // Duration of the "preparation" phase
-  // preActionLabel?: string; // Removed
-  postActionDuration: number; // Duration of the "follow-up" phase
-  // postActionLabel?: string; // Removed
+  preActionDuration: number; 
+  postActionDuration: number; 
 }
 
 // Represents the fields a user can configure for a task type
 export interface UserEditableTaskTypeFields {
   label: string;
   preActionDuration: number;
-  // preActionLabel?: string; // Removed
   postActionDuration: number;
-  // postActionLabel?: string; // Removed
 }
 
 // Structure for storing user configurations in localStorage
@@ -48,7 +43,7 @@ export interface SpreadsheetTaskRow {
   tempId: string;
   name?: string;
   spacecraft: Spacecraft;
-  startTime: string; // Store as string matching datetime-local input
+  startTime: string; // Store as string matching datetime-local input, represents core event time
   type: TaskType;
 }
 

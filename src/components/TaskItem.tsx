@@ -12,7 +12,7 @@ import {
   getTaskTypeColorClass, 
   getTaskTypeIcon,       
   formatTaskTime,
-  calculateEndTime,
+  calculateEndTime, // We can use this for adding and subtracting (by using negative duration)
   getTaskTypeDetails,    
 } from "@/lib/task-utils";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -33,25 +33,29 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
 
   const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
 
-  const overallStartTimeStr = task.startTime;
+  // Core event time
+  const coreEventTimeISO = task.startTime;
+
+  // Calculate actual start and end of the entire activity
+  const overallStartTimeISO = calculateEndTime(coreEventTimeISO, -task.preActionDuration);
+  const overallEndTimeISO = calculateEndTime(coreEventTimeISO, task.postActionDuration);
+
+  // Pre-Action phase timings
+  const preActionPhaseStartTimeISO = overallStartTimeISO;
+  const preActionPhaseEndTimeISO = coreEventTimeISO;
+
+  // Post-Action phase timings
+  const postActionPhaseStartTimeISO = coreEventTimeISO;
+  const postActionPhaseEndTimeISO = overallEndTimeISO;
   
-  const preActionPhaseEndTimeStr = task.preActionDuration > 0
-    ? calculateEndTime(overallStartTimeStr, task.preActionDuration)
-    : overallStartTimeStr; 
-
-  const postActionPhaseStartTimeStr = preActionPhaseEndTimeStr;
-  const postActionPhaseEndTimeStr = task.postActionDuration > 0
-    ? calculateEndTime(postActionPhaseStartTimeStr, task.postActionDuration)
-    : postActionPhaseStartTimeStr;
-
-  const dateInUTC = new Date(task.startTime).toLocaleDateString('en-US', {
+  const dateInUTC = new Date(overallStartTimeISO).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC'
   });
 
-  const isOverdue = new Date(overallStartTimeStr) < new Date() && !task.isCompleted;
+  const isOverdue = new Date(overallEndTimeISO) < new Date() && !task.isCompleted;
 
   const taskDisplayLabel = taskTypeDetails?.label || task.type;
   const taskNameDisplay = task.name || `${taskDisplayLabel} - ${task.spacecraft}`;
@@ -119,23 +123,32 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete }: TaskItemP
               <Clock className="mr-2 h-4 w-4 text-primary opacity-70" />
               <span>
                 Preparation: {task.preActionDuration} min
-                ({formatTaskTime(overallStartTimeStr)} - {formatTaskTime(preActionPhaseEndTimeStr)})
+                ({formatTaskTime(preActionPhaseStartTimeISO)} - {formatTaskTime(preActionPhaseEndTimeISO)})
               </span>
             </div>
           )}
+          
+          {(task.preActionDuration > 0 || task.postActionDuration > 0) && (
+             <div className="flex items-center font-medium">
+                <Clock className="mr-2 h-4 w-4 text-primary" />
+                <span>Core Event Time: {formatTaskTime(coreEventTimeISO)}</span>
+             </div>
+          )}
+
           {task.postActionDuration > 0 && (
             <div className="flex items-center text-muted-foreground">
               <Clock className="mr-2 h-4 w-4 text-primary opacity-70" />
               <span>
                 Follow-up: {task.postActionDuration} min
-                ({formatTaskTime(postActionPhaseStartTimeStr)} - {formatTaskTime(postActionPhaseEndTimeStr)})
+                ({formatTaskTime(postActionPhaseStartTimeISO)} - {formatTaskTime(postActionPhaseEndTimeISO)})
               </span>
             </div>
           )}
+
           {task.preActionDuration === 0 && task.postActionDuration === 0 && (
             <div className="flex items-center font-medium">
               <Clock className="mr-2 h-4 w-4 text-primary" />
-              <span>Event at {formatTaskTime(overallStartTimeStr)}</span>
+              <span>Event at {formatTaskTime(coreEventTimeISO)}</span>
             </div>
           )}
         </div>
