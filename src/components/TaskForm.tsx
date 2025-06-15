@@ -46,7 +46,6 @@ const taskFormSchema = z.object({
   }, {
     message: "Invalid start time format. Please ensure it's a complete date and time.",
   }),
-  // duration is removed - will be fixed to 1 min
   type: z.enum(TASK_TYPES),
 });
 
@@ -83,14 +82,12 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           type: initialTask.type,
-          // duration removed
         }
       : {
           name: "",
           spacecraft: defaultSpacecraft,
           startTime: defaultInitialUtcTimeForInput,
           type: defaultTaskType,
-          // duration removed
         },
   });
 
@@ -103,7 +100,6 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           type: initialTask.type,
-          // duration removed
         });
       } else {
         form.reset({
@@ -111,7 +107,6 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           spacecraft: defaultSpacecraft,
           startTime: getUtcDateTimeLocalString(new Date()),
           type: defaultTypeForNew,
-          // duration removed
         });
       }
     }
@@ -131,7 +126,6 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       name: taskName,
       spacecraft: values.spacecraft,
       startTime: new Date(values.startTime + 'Z').toISOString(),
-      duration: 1, // Core duration is now fixed at 1 minute
       type: values.type,
       preActionDuration: selectedTaskTypeDetails?.preActionDuration || 0,
       postActionDuration: selectedTaskTypeDetails?.postActionDuration || 0,
@@ -201,7 +195,6 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
                 </FormItem>
               )}
             />
-            {/* Duration field removed from UI */}
             <FormField
               control={form.control}
               name="type"

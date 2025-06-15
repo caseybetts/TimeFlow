@@ -33,9 +33,21 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
 
   useEffect(() => {
     if (isOpen) {
-      setLocalTaskTypeConfig(JSON.parse(JSON.stringify(userConfig)));
+      // Deep clone to prevent direct state mutation issues with nested objects if any
+      const currentConfigCopy = JSON.parse(JSON.stringify(userConfig));
+      // Ensure all default task types have an entry in local state for editing
+      const fullLocalConfig: UserTaskTypesConfig = {};
+      DEFAULT_TASK_TYPE_OPTIONS.forEach(defaultOpt => {
+        fullLocalConfig[defaultOpt.value] = {
+          label: currentConfigCopy[defaultOpt.value]?.label ?? defaultOpt.label,
+          preActionDuration: currentConfigCopy[defaultOpt.value]?.preActionDuration ?? defaultOpt.preActionDuration,
+          postActionDuration: currentConfigCopy[defaultOpt.value]?.postActionDuration ?? defaultOpt.postActionDuration,
+        };
+      });
+      setLocalTaskTypeConfig(fullLocalConfig);
     }
   }, [isOpen, userConfig]);
+
 
   const handleTaskTypeInputChange = (
     taskValue: TaskType,
@@ -43,29 +55,41 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
     value: string | number
   ) => {
     setLocalTaskTypeConfig(prev => {
-      const currentTypeSettings = prev[taskValue] || {};
-      const defaultTypeSettings = DEFAULT_TASK_TYPE_OPTIONS.find(opt => opt.value === taskValue);
-      
+      const existingTypeSettings = prev[taskValue] || {};
       const newSettings: UserEditableTaskTypeFields = {
-        label: currentTypeSettings.label ?? defaultTypeSettings?.label ?? "",
-        preActionDuration: currentTypeSettings.preActionDuration ?? defaultTypeSettings?.preActionDuration ?? 0,
-        preActionLabel: currentTypeSettings.preActionLabel ?? defaultTypeSettings?.preActionLabel ?? "",
-        postActionDuration: currentTypeSettings.postActionDuration ?? defaultTypeSettings?.postActionDuration ?? 0,
-        postActionLabel: currentTypeSettings.postActionLabel ?? defaultTypeSettings?.postActionLabel ?? "",
+        ...existingTypeSettings, // preserve other fields like label
+        label: existingTypeSettings.label, // ensure label is preserved or set from default
+        preActionDuration: existingTypeSettings.preActionDuration,
+        postActionDuration: existingTypeSettings.postActionDuration
       };
 
       if (field === 'preActionDuration' || field === 'postActionDuration') {
         newSettings[field] = Math.max(0, Number(value));
-      } else {
-        (newSettings[field] as string) = String(value);
+      } else if (field === 'label') {
+        newSettings[field] = String(value);
       }
       
       return { ...prev, [taskValue]: newSettings };
     });
   };
 
+
   const handleTaskTypeSaveChanges = () => {
-    updateUserConfig(localTaskTypeConfig);
+    // Filter out any entries that are identical to defaults to keep storage minimal
+    const configToSave: UserTaskTypesConfig = {};
+    for (const taskVal in localTaskTypeConfig) {
+        const taskValue = taskVal as TaskType;
+        const currentLocal = localTaskTypeConfig[taskValue];
+        const defaultOpt = DEFAULT_TASK_TYPE_OPTIONS.find(opt => opt.value === taskValue);
+
+        if (defaultOpt && currentLocal &&
+            (currentLocal.label !== defaultOpt.label ||
+             currentLocal.preActionDuration !== defaultOpt.preActionDuration ||
+             currentLocal.postActionDuration !== defaultOpt.postActionDuration)) {
+            configToSave[taskValue] = currentLocal;
+        }
+    }
+    updateUserConfig(configToSave);
     toast({
       title: "Task Type Settings Saved",
       description: "Task type configurations have been updated.",
@@ -74,13 +98,21 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
 
   const handleResetSingleTaskTypeToDefault = (taskValue: TaskType) => {
     resetTaskTypeConfig(taskValue); 
-    setLocalTaskTypeConfig(prev => {
-        const { [taskValue]: _, ...rest } = prev; // Remove the specific task type override
-        return rest;
-    });
+    // Update local state to reflect this reset for the UI
+    const defaultOpt = DEFAULT_TASK_TYPE_OPTIONS.find(opt => opt.value === taskValue);
+    if (defaultOpt) {
+        setLocalTaskTypeConfig(prev => ({
+            ...prev,
+            [taskValue]: { // Revert to default values for this specific type
+                label: defaultOpt.label,
+                preActionDuration: defaultOpt.preActionDuration,
+                postActionDuration: defaultOpt.postActionDuration,
+            }
+        }));
+    }
      toast({
       title: "Task Type Configuration Reset",
-      description: `Settings for "${DEFAULT_TASK_TYPE_OPTIONS.find(opt => opt.value === taskValue)?.label}" have been reset to default.`,
+      description: `Settings for "${DEFAULT_TASK_TYPE_OPTIONS.find(opt => opt.value === taskValue)?.label}" have been reset to default. Save to persist.`,
     });
   };
 
@@ -99,12 +131,16 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
               <h3 className="text-xl font-semibold text-foreground mb-3">Task Type Configuration</h3>
               <div className="space-y-6">
                 {DEFAULT_TASK_TYPE_OPTIONS.map((defaultOption) => {
-                  const currentSettings = localTaskTypeConfig[defaultOption.value] || {};
-                  const displayLabel = currentSettings.label ?? defaultOption.label;
-                  const preDuration = currentSettings.preActionDuration ?? defaultOption.preActionDuration;
-                  const preLabel = currentSettings.preActionLabel ?? defaultOption.preActionLabel;
-                  const postDuration = currentSettings.postActionDuration ?? defaultOption.postActionDuration;
-                  const postLabel = currentSettings.postActionLabel ?? defaultOption.postActionLabel;
+                  // Ensure localTaskTypeConfig has an entry for defaultOption.value
+                  const currentSettings = localTaskTypeConfig[defaultOption.value] || {
+                      label: defaultOption.label,
+                      preActionDuration: defaultOption.preActionDuration,
+                      postActionDuration: defaultOption.postActionDuration,
+                  };
+                  
+                  const displayLabel = currentSettings.label;
+                  const preDuration = currentSettings.preActionDuration;
+                  const postDuration = currentSettings.postActionDuration;
 
                   return (
                     <div key={defaultOption.value} className="p-4 border rounded-md shadow-sm bg-background">
@@ -128,9 +164,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                             placeholder={defaultOption.label}
                           />
                         </div>
-                        <div></div> 
-
-                        <div className="space-y-1">
+                         <div className="space-y-1 md:col-start-1"> {/* Pre Action Duration on new line for clarity if needed */}
                           <Label htmlFor={`preActionDuration-${defaultOption.value}`}>Pre-Action Duration (min)</Label>
                           <Input
                             id={`preActionDuration-${defaultOption.value}`}
@@ -142,15 +176,6 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label htmlFor={`preActionLabel-${defaultOption.value}`}>Pre-Action Label</Label>
-                          <Input
-                            id={`preActionLabel-${defaultOption.value}`}
-                            value={preLabel || ""}
-                            onChange={(e) => handleTaskTypeInputChange(defaultOption.value, "preActionLabel", e.target.value)}
-                            placeholder={defaultOption.preActionLabel || "E.g., Prep"}
-                          />
-                        </div>
-                        <div className="space-y-1">
                           <Label htmlFor={`postActionDuration-${defaultOption.value}`}>Post-Action Duration (min)</Label>
                           <Input
                             id={`postActionDuration-${defaultOption.value}`}
@@ -159,15 +184,6 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                             min="0"
                             onChange={(e) => handleTaskTypeInputChange(defaultOption.value, "postActionDuration", parseInt(e.target.value, 10))}
                             placeholder={String(defaultOption.postActionDuration)}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor={`postActionLabel-${defaultOption.value}`}>Post-Action Label</Label>
-                          <Input
-                            id={`postActionLabel-${defaultOption.value}`}
-                            value={postLabel || ""}
-                            onChange={(e) => handleTaskTypeInputChange(defaultOption.value, "postActionLabel", e.target.value)}
-                            placeholder={defaultOption.postActionLabel || "E.g., Wrap-up"}
                           />
                         </div>
                       </div>

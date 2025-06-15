@@ -55,7 +55,6 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         name: "",
         spacecraft: defaultSpacecraft,
         startTime: getUtcDateTimeLocalString(new Date()),
-        // duration removed
         type: defaultTaskType,
       },
     ]);
@@ -135,7 +134,6 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         name: taskName,
         spacecraft: row.spacecraft,
         startTime: new Date(row.startTime + 'Z').toISOString(),
-        duration: 1, // Core duration is now fixed at 1 minute
         type: row.type,
         preActionDuration: taskTypeDetails.preActionDuration,
         postActionDuration: taskTypeDetails.postActionDuration,
@@ -171,7 +169,6 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
               <TableHead className="w-[25%]">Task Name (Optional)</TableHead>
               <TableHead className="w-[20%]">Spacecraft</TableHead>
               <TableHead className="w-[30%]">Start Time (UTC)</TableHead>
-              {/* Duration column removed */}
               <TableHead className="w-[20%]">Type</TableHead>
               <TableHead className="w-[5%] text-right">Actions</TableHead>
             </TableRow>
@@ -218,7 +215,6 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
                     className="h-9"
                   />
                 </TableCell>
-                {/* Duration cell removed */}
                 <TableCell>
                   <Select
                     value={row.type}

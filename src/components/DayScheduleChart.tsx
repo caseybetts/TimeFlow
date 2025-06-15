@@ -82,9 +82,7 @@ const CustomTooltipContentRenderer = ({ active, payload, label, effectiveTaskTyp
     const task = data.originalTask;
     const taskTypeDetailsEffective = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
     const taskNameDisplay = task.name || `${taskTypeDetailsEffective?.label || task.type} - ${task.spacecraft}`;
-    const coreStartTime = new Date(task.startTime);
-    const formattedCoreStartTime = formatTaskTime(coreStartTime.toISOString());
-
+    
     return (
       <div style={{
           backgroundColor: 'hsla(var(--background) / 0.9)',
@@ -99,10 +97,10 @@ const CustomTooltipContentRenderer = ({ active, payload, label, effectiveTaskTyp
         <p style={{ fontWeight: '600', margin: '0 0 8px 0', borderBottom: '1px solid hsl(var(--border))', paddingBottom: '8px' }}>
           {taskNameDisplay} <span style={{opacity: 0.7}}>({task.isCompleted ? "Completed" : "Pending"})</span>
         </p>
-         <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Core Starts:</span> {formattedCoreStartTime}</p>
+        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Overall Start:</span> {formatTaskTime(task.startTime)}</p>
         <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Spacecraft:</span> {task.spacecraft}</p>
-        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Pre-Action:</span> {task.preActionDuration} min</p>
-        <p style={{ margin: '0' }}><span style={{fontWeight: '500'}}>Post-Action:</span> {task.postActionDuration} min</p>
+        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Preparation:</span> {task.preActionDuration} min</p>
+        <p style={{ margin: '0' }}><span style={{fontWeight: '500'}}>Follow-up:</span> {task.postActionDuration} min</p>
       </div>
     );
   }
@@ -126,15 +124,16 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     setIsClient(true);
   }, []);
 
-  const chartConfig = useMemo(() => {
+   const chartConfig = useMemo(() => {
     return effectiveTaskTypeOptions.reduce((acc, option) => {
       const key = taskValueToChartKey(option.value);
       let color = "hsl(var(--muted))";
 
-      const defaultType = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
+      // Match against the `value` of the default types
+      const defaultTypeMatch = DEFAULT_TASK_TYPE_OPTIONS.find(d => d.value === option.value);
 
-      if (defaultType) {
-        switch (defaultType.value) {
+      if (defaultTypeMatch) {
+        switch (defaultTypeMatch.value) {
           case "fsv":
             color = "hsl(var(--chart-1))";
             break;
@@ -148,18 +147,15 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             color = "hsl(var(--chart-4))";
             break;
           default:
-            // For any other default task types not explicitly listed,
-            // or for custom task types (if they could exist without a default backing),
-            // they would fall back to the initial `hsl(var(--muted))` or you could assign another default chart color.
-            // Example: color = "hsl(var(--chart-5))";
+            // color = "hsl(var(--chart-5))"; // Example for other types
             break;
         }
       }
-
+      
       acc[key] = {
         label: option.label,
         color: color,
-        icon: option.icon || defaultType?.icon
+        icon: option.icon || defaultTypeMatch?.icon
       };
       return acc;
     }, {} as ChartConfig);
@@ -175,32 +171,33 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     const viewWindowEndMs = selectedDateEpochStartMs + viewWindowEndMinutesUTC * 60000;
 
     const tasksInView = tasks.filter(task => {
-      const taskCoreStartMs = new Date(task.startTime).getTime(); 
-      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000; 
-      const taskEffectiveEndMs = taskCoreStartMs + (task.duration + task.postActionDuration) * 60000; 
+      const taskActualStartMs = new Date(task.startTime).getTime();
+      const taskTotalDurationMinutes = task.preActionDuration + task.postActionDuration;
+      // Ensure a minimum duration for visibility on the chart if total duration is 0
+      const effectiveTotalDurationMinutes = Math.max(1, taskTotalDurationMinutes);
+      const taskActualEndMs = taskActualStartMs + effectiveTotalDurationMinutes * 60000;
 
-      return taskEffectiveStartMs < viewWindowEndMs && taskEffectiveEndMs > viewWindowStartMs;
+      return taskActualStartMs < viewWindowEndMs && taskActualEndMs > viewWindowStartMs;
     });
 
      tasksInView.sort((a,b) => {
-        const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
-        const effectiveStartTimeB = new Date(b.startTime).getTime() - (b.preActionDuration * 60000);
-        return effectiveStartTimeA - effectiveStartTimeB;
+        const startTimeA = new Date(a.startTime).getTime();
+        const startTimeB = new Date(b.startTime).getTime();
+        return startTimeA - startTimeB;
     });
 
     return tasksInView.map((task) => {
-      const taskCoreStartMs = new Date(task.startTime).getTime();
-      const taskEffectiveStartMs = taskCoreStartMs - task.preActionDuration * 60000; 
+      const taskActualStartMs = new Date(task.startTime).getTime();
+      let taskStartMinutesRelativeToDay = (taskActualStartMs - selectedDateEpochStartMs) / 60000;
 
-      let taskStartMinutesRelativeToDay = (taskEffectiveStartMs - selectedDateEpochStartMs) / 60000;
-
-      const totalEffectiveDurationMinutes = task.preActionDuration + task.duration + task.postActionDuration;
-      let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + totalEffectiveDurationMinutes; 
+      const totalTaskDurationMinutes = task.preActionDuration + task.postActionDuration;
+      // Ensure a minimum duration for visibility on the chart
+      const effectiveTotalDurationMinutesOnChart = Math.max(1, totalTaskDurationMinutes);
+      let taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + effectiveTotalDurationMinutesOnChart; 
 
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
-      const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - `;
+      const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
       const taskNameForAxisDisplay = `${taskNameDisplay.substring(0,25)}${taskNameDisplay.length > 25 ? '...' : ''} (${task.spacecraft})`;
-
 
       return {
         id: task.id,
@@ -216,11 +213,11 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
 
 
   useEffect(() => {
+    if (!isClient) return;
+
     const todayUTC = new Date(); 
     const selectedDateEpochStart = Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), selectedDate.getUTCDate()); 
-
     const nowEpoch = todayUTC.getTime(); 
-
     const currentMinutesRelativeToSelectedDayStart = (nowEpoch - selectedDateEpochStart) / 60000;
 
     if (currentMinutesRelativeToSelectedDayStart >= viewWindow[0] && currentMinutesRelativeToSelectedDayStart <= viewWindow[1]) {
@@ -228,7 +225,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     } else {
       setCurrentTimeLinePosition(null); 
     }
-  }, [selectedDate, viewWindow, tasks, refreshKey]);
+  }, [selectedDate, viewWindow, tasks, refreshKey, isClient]);
 
 
   const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80; 
@@ -395,4 +392,3 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
-

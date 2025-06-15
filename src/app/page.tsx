@@ -37,9 +37,14 @@ export default function HomePage() {
 
   useEffect(() => {
     setIsMounted(true);
-    const today = new Date();
-    setSelectedDateForChart(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())));
   }, []);
+  
+  useEffect(() => {
+    if(isMounted) {
+      const today = new Date();
+      setSelectedDateForChart(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())));
+    }
+  }, [isMounted]);
 
   useEffect(() => {
     if (isMounted) {
@@ -170,7 +175,7 @@ export default function HomePage() {
     }
 
     const header = [
-      "id", "name", "spacecraft", "startTime", "duration",
+      "id", "name", "spacecraft", "startTime", 
       "type", "preActionDuration", "postActionDuration", "isCompleted"
     ];
     const csvRows = [header.join(',')];
@@ -181,7 +186,6 @@ export default function HomePage() {
         escapeCsvField(task.name),
         escapeCsvField(task.spacecraft),
         escapeCsvField(task.startTime),
-        escapeCsvField(task.duration),
         escapeCsvField(task.type),
         escapeCsvField(task.preActionDuration),
         escapeCsvField(task.postActionDuration),
@@ -306,7 +310,6 @@ export default function HomePage() {
             name,
             spacecraft: csvSpacecraft,
             startTime: new Date(csvStartTime).toISOString(),
-            duration: 1, 
             type: csvTaskType,
             preActionDuration,
             postActionDuration,
@@ -401,7 +404,7 @@ export default function HomePage() {
         <section>
           <DayScheduleChart tasks={tasks} selectedDate={selectedDateForChart} />
         </section>
-
+        
         <section>
           <h2 className="text-2xl font-headline font-semibold text-foreground mb-4">Task List</h2>
           <Timeline
@@ -421,7 +424,7 @@ export default function HomePage() {
               Upload a CSV file to import tasks. Ensure your CSV has a header row with columns like:
               name (optional), spacecraft, startTime (ISO format), type (e.g., fsv, rtp), 
               preActionDuration (optional), postActionDuration (optional), isCompleted (optional, true/false).
-              The 'id' and 'duration' columns from the CSV will be ignored; new IDs are generated and duration is fixed at 1 min.
+              The 'id' column from the CSV will be ignored; new IDs are generated.
               Valid task type values are: {effectiveTaskTypeOptions.map(opt => opt.value).join(', ')}.
             </CardDescription>
           </CardHeader>
@@ -468,5 +471,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    

@@ -1,5 +1,5 @@
 
-import type { TaskType, TaskTypeOption, UserTaskTypesConfig, UserEditableTaskTypeFields } from '@/types';
+import type { TaskType, TaskTypeOption, UserTaskTypesConfig } from '@/types';
 import { Briefcase, User, ShoppingCart, CalendarDays, type LucideIcon } from 'lucide-react';
 
 // Base default definitions for task types
@@ -10,9 +10,9 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
     icon: Briefcase,
     color: "bg-sky-500",
     preActionDuration: 10,
-    preActionLabel: "Prep",
+    // preActionLabel: "Prep", // Removed
     postActionDuration: 5,
-    postActionLabel: "Wrap-up",
+    // postActionLabel: "Wrap-up", // Removed
   },
   {
     value: "rtp",
@@ -20,9 +20,9 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
     icon: User,
     color: "bg-purple-500",
     preActionDuration: 0,
-    preActionLabel: "",
+    // preActionLabel: "", // Removed
     postActionDuration: 0,
-    postActionLabel: "",
+    // postActionLabel: "", // Removed
   },
   {
     value: "tl",
@@ -30,9 +30,9 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
     icon: ShoppingCart,
     color: "bg-orange-500",
     preActionDuration: 5,
-    preActionLabel: "Travel to",
+    // preActionLabel: "Travel to", // Removed
     postActionDuration: 5,
-    postActionLabel: "Travel from",
+    // postActionLabel: "Travel from", // Removed
   },
   {
     value: "appointment",
@@ -40,9 +40,9 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
     icon: CalendarDays,
     color: "bg-teal-500",
     preActionDuration: 15,
-    preActionLabel: "Travel & Check-in",
+    // preActionLabel: "Travel & Check-in", // Removed
     postActionDuration: 0,
-    postActionLabel: "",
+    // postActionLabel: "", // Removed
   },
 ];
 
@@ -53,9 +53,13 @@ export function getEffectiveTaskTypeOptions(
   return DEFAULT_TASK_TYPE_OPTIONS.map(defaultOption => {
     const userOverrides = userConfig[defaultOption.value];
     if (userOverrides) {
+      // Ensure only valid fields are spread
+      const { label, preActionDuration, postActionDuration } = userOverrides;
       return {
         ...defaultOption,
-        ...userOverrides,
+        label: label ?? defaultOption.label,
+        preActionDuration: preActionDuration ?? defaultOption.preActionDuration,
+        postActionDuration: postActionDuration ?? defaultOption.postActionDuration,
       };
     }
     return defaultOption;
@@ -68,17 +72,20 @@ export function getTaskTypeDetails(type: TaskType, effectiveOptions: readonly Ta
 }
 
 export function formatTaskTime(isoString: string): string {
+  if (!isoString) return "";
   const date = new Date(isoString);
-  return date.toLocaleTimeString('en-US', { // Changed to en-GB for 24-hour format, or use hourCycle
+  return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false, // Ensure 24-hour format
+    hour12: false,
     timeZone: 'UTC'
   }) + ' UTC';
 }
 
 export function calculateEndTime(startTime: string, durationMinutes: number): string {
+  if (!startTime) return "";
   const startDate = new Date(startTime);
+  // Ensure we are operating on UTC dates to avoid timezone shifts during calculations
   const startDateUtc = new Date(Date.UTC(
     startDate.getUTCFullYear(),
     startDate.getUTCMonth(),
@@ -92,7 +99,6 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
   return endDate.toISOString();
 }
 
-// These functions still rely on the 'value' to find the base default for icon/color
 export function getTaskTypeColorClass(type: TaskType): string {
   const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
   return details ? details.color : 'bg-gray-500';
@@ -102,4 +108,3 @@ export function getTaskTypeIcon(type: TaskType): LucideIcon {
   const details = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === type);
   return details ? details.icon : Briefcase;
 }
-
