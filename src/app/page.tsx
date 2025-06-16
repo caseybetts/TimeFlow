@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect, ChangeEvent } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { TaskForm } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
 import type { Task, TaskType, Spacecraft } from "@/types";
 import { SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download } from "lucide-react";
+import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2 } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -19,6 +19,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
@@ -33,6 +43,7 @@ export default function HomePage() {
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importMode, setImportMode] = useState<"replace" | "add">("replace");
+  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
 
 
   useEffect(() => {
@@ -85,8 +96,6 @@ export default function HomePage() {
 
   const handleBatchAddTasks = (tasksData: Omit<Task, "id" | "isCompleted">[]) => {
     const newTasks: Task[] = tasksData.map(taskData => {
-      // For batch add, pre/post durations are already part of tasksData if specified
-      // or will use defaults from task type if not specified by SpreadsheetInput
       return {
         ...taskData,
         id: crypto.randomUUID(),
@@ -126,6 +135,30 @@ export default function HomePage() {
       });
     }
   };
+
+  const handleOpenDeleteAllConfirmation = () => {
+    if (tasks.length === 0) {
+      toast({
+        title: "No Tasks",
+        description: "There are no tasks to delete.",
+        variant: "default",
+      });
+      return;
+    }
+    setIsDeleteAllConfirmOpen(true);
+  };
+
+  const handleExecuteDeleteAllTasks = () => {
+    const numTasksDeleted = tasks.length;
+    setTasks([]);
+    setIsDeleteAllConfirmOpen(false); // Close the dialog
+    toast({
+      title: "All Tasks Deleted",
+      description: `${numTasksDeleted} task(s) have been removed from your schedule.`,
+      variant: "destructive",
+    });
+  };
+
 
   const handleToggleComplete = (taskId: string) => {
     let taskName = "";
@@ -186,7 +219,7 @@ export default function HomePage() {
         escapeCsvField(task.id),
         escapeCsvField(task.name),
         escapeCsvField(task.spacecraft),
-        escapeCsvField(task.startTime), // Core event time
+        escapeCsvField(task.startTime), 
         escapeCsvField(task.type),
         escapeCsvField(task.preActionDuration),
         escapeCsvField(task.postActionDuration),
@@ -277,7 +310,7 @@ export default function HomePage() {
             errors.push(`Row ${i + 1}: Invalid spacecraft "${csvSpacecraft}".`);
             continue;
           }
-          if (isNaN(Date.parse(csvStartTime))) { // Expects ISO string from CSV for startTime
+          if (isNaN(Date.parse(csvStartTime))) { 
             errors.push(`Row ${i + 1}: Invalid startTime format "${csvStartTime}". Must be ISO 8601 format.`);
             continue;
           }
@@ -310,7 +343,7 @@ export default function HomePage() {
             id: crypto.randomUUID(),
             name,
             spacecraft: csvSpacecraft,
-            startTime: new Date(csvStartTime).toISOString(), // Ensure it's stored as ISO
+            startTime: new Date(csvStartTime).toISOString(),
             type: csvTaskType,
             preActionDuration: Math.max(0, preActionDuration),
             postActionDuration: Math.max(0, postActionDuration),
@@ -395,6 +428,9 @@ export default function HomePage() {
           <Button onClick={handleExportTasks} variant="outline">
             <Download className="mr-2 h-4 w-4" /> Export Tasks (CSV)
           </Button>
+          <Button onClick={handleOpenDeleteAllConfirmation} variant="destructive" disabled={tasks.length === 0}>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete All
+          </Button>
           <Button onClick={openAddModal} className="bg-primary hover:bg-primary/90 text-primary-foreground">
             <PlusCircle className="mr-2 h-4 w-4" /> Add Task (Modal)
           </Button>
@@ -430,7 +466,7 @@ export default function HomePage() {
               <br />
               Valid task type values are: {effectiveTaskTypeOptions.map(opt => `"${opt.value}"`).join(', ')}.
               <br />
-              If pre/post durations are not provided, they default from the task type's settings.
+              If pre/post durations are not provided or invalid, they default from the task type's settings.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -469,6 +505,26 @@ export default function HomePage() {
         isOpen={isSettingsModalOpen}
         onOpenChange={setIsSettingsModalOpen}
       />
+
+      <AlertDialog open={isDeleteAllConfirmOpen} onOpenChange={setIsDeleteAllConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all {tasks.length} task(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleExecuteDeleteAllTasks} 
+              className={buttonVariants({ variant: "destructive" })}
+            >
+              Delete All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       <footer className="mt-8 pt-4 text-center text-sm text-muted-foreground border-t border-border">
         <p>&copy; {new Date().getFullYear()} TimeFlow. Stay organized, effortlessly.</p>
@@ -476,3 +532,4 @@ export default function HomePage() {
     </div>
   );
 }
+
