@@ -122,7 +122,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const [isClient, setIsClient] = useState(false);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig(); 
   const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
-  // Default to a 24-hour view initially, will be overridden by useEffect
   const [viewWindow, setViewWindow] = useState<[number, number]>([0 * 60, 24 * 60]); 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -141,8 +140,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       );
       const currentMinutesRelativeToSelectedDayStart = (now.getTime() - selectedDateEpochStartMs) / 60000;
 
-      let newStartMinutes = currentMinutesRelativeToSelectedDayStart - (2 * 60); // now - 2 hours
-      let newEndMinutes = currentMinutesRelativeToSelectedDayStart + (13 * 60);   // now + 13 hours
+      let newStartMinutes = currentMinutesRelativeToSelectedDayStart - (2 * 60); // Set start 2 hours before now
+      let newEndMinutes = currentMinutesRelativeToSelectedDayStart + (13 * 60);   // Set end 13 hours after now
 
       // Bound by slider limits
       newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
@@ -194,13 +193,11 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             color = "hsl(var(--chart-4))";
             break;
           default:
-            // For any other custom types, or if one is added without explicit color mapping here
-            // assign from chart-5 or cycle through chart colors
             color = "hsl(var(--chart-5))"; 
             break;
         }
       } else {
-         color = "hsl(var(--chart-5))"; // Fallback for user-defined types not in defaults
+         color = "hsl(var(--chart-5))"; 
       }
       
       acc[key] = {
@@ -226,7 +223,6 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       const taskActualStartMs = coreEventTimeMs - (task.preActionDuration * 60000);
       const taskActualEndMs = coreEventTimeMs + (task.postActionDuration * 60000);
       
-      // Ensure a minimum duration for visibility if total duration is 0
       const effectiveTotalDurationMs = Math.max(60000, taskActualEndMs - taskActualStartMs);
       const effectiveTaskActualEndMs = taskActualStartMs + effectiveTotalDurationMs;
 
@@ -249,9 +245,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       let taskStartMinutesRelativeToDay = (actualStartMs - selectedDateEpochStartMs) / 60000;
       let taskEndMinutesRelativeToDay = (actualEndMs - selectedDateEpochStartMs) / 60000;
 
-      // Ensure a minimum duration for visibility on the chart
       if (taskEndMinutesRelativeToDay <= taskStartMinutesRelativeToDay) {
-        taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + 1; // 1 minute minimum bar
+        taskEndMinutesRelativeToDay = taskStartMinutesRelativeToDay + 1; 
       }
 
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
@@ -388,10 +383,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                   interval="preserveStartEnd" 
                   minTickGap={30} 
                   ticks={
-                    // Generate ticks dynamically based on viewWindow, aiming for around 6-10 ticks
-                    // This is a simple example; more sophisticated tick generation might be needed
                     Array.from(
-                      { length: Math.floor((viewWindow[1] - viewWindow[0]) / (4 * 60)) + 1 }, // e.g., every 4 hours
+                      { length: Math.floor((viewWindow[1] - viewWindow[0]) / (4 * 60)) + 1 }, 
                       (_, i) => Math.floor(viewWindow[0] / (4*60) + i) * (4*60)
                     ).filter(tick => tick >= viewWindow[0] && tick <= viewWindow[1])
                   }
@@ -424,8 +417,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                         } else if (colorForCell.startsWith("hsl(")) { 
                            const valuesPart = colorForCell.substring(4, colorForCell.length - 1); 
                            colorForCell = `hsla(${valuesPart}, 0.5)`; 
-                        } else { // Fallback if color is not hsl (e.g. hex) - might need a proper parser
-                           colorForCell = `${colorForCell}80`; // Attempt to add alpha for hex
+                        } else { 
+                           colorForCell = `${colorForCell}80`; 
                         }
                       }
                       
@@ -461,5 +454,3 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
-
-    
