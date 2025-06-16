@@ -48,9 +48,12 @@ const taskValueToChartKey = (taskValue: TaskType): string => {
 };
 
 const formatMinutesToTimeLocal = (totalMinutes: number): string => {
-  const hours = Math.floor(totalMinutes / 60) % 24;
+  const hours = Math.floor(totalMinutes / 60) % 24; // Ensure hours wrap around 24 for display
   const minutes = totalMinutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  // Handle potential negative minutes if totalMinutes is negative
+  const displayHours = hours < 0 ? (hours + 24) % 24 : hours;
+  const displayMinutes = minutes < 0 ? (minutes + 60) % 60 : minutes;
+  return `${String(displayHours).padStart(2, '0')}:${String(displayMinutes).padStart(2, '0')}`;
 };
 
 interface CustomTooltipInternalProps {
@@ -111,21 +114,63 @@ const CustomTooltipContentRenderer = ({ active, payload, effectiveTaskTypeOption
 };
 
 
-const MIN_SLIDER_MINUTES = 0;
-const MAX_SLIDER_MINUTES = 48 * 60; 
+const MIN_SLIDER_MINUTES = 0; // Represents 00:00 on selectedDate
+const MAX_SLIDER_MINUTES = 48 * 60; // Allows viewing up to 48 hours from selectedDate start
 const MIN_WINDOW_DURATION_MINUTES = 30; 
-const DEFAULT_INITIAL_WINDOW_MINUTES: [number, number] = [0 * 60, 24 * 60]; 
 
 export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps) {
   const [isClient, setIsClient] = useState(false);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig(); 
   const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
-  const [viewWindow, setViewWindow] = useState<[number, number]>(DEFAULT_INITIAL_WINDOW_MINUTES);
+  // Default to a 24-hour view initially, will be overridden by useEffect
+  const [viewWindow, setViewWindow] = useState<[number, number]>([0 * 60, 24 * 60]); 
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Effect to set the initial view window relative to current time
+  useEffect(() => {
+    if (isClient && selectedDate) {
+      const now = new Date();
+      const selectedDateEpochStartMs = Date.UTC(
+        selectedDate.getUTCFullYear(),
+        selectedDate.getUTCMonth(),
+        selectedDate.getUTCDate()
+      );
+      const currentMinutesRelativeToSelectedDayStart = (now.getTime() - selectedDateEpochStartMs) / 60000;
+
+      let newStartMinutes = currentMinutesRelativeToSelectedDayStart - (2 * 60); // now - 2 hours
+      let newEndMinutes = currentMinutesRelativeToSelectedDayStart + (13 * 60);   // now + 13 hours
+
+      // Bound by slider limits
+      newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
+      newEndMinutes = Math.min(MAX_SLIDER_MINUTES, newEndMinutes);
+
+      // Ensure minimum window duration
+      if (newEndMinutes - newStartMinutes < MIN_WINDOW_DURATION_MINUTES) {
+        // Attempt to center the minimum duration window around the current time
+        const currentMinuteForCentering = currentMinutesRelativeToSelectedDayStart;
+        newStartMinutes = currentMinuteForCentering - MIN_WINDOW_DURATION_MINUTES / 2;
+        newEndMinutes = currentMinuteForCentering + MIN_WINDOW_DURATION_MINUTES / 2;
+
+        // Re-bound and adjust if boundaries make it too small
+        newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
+        newEndMinutes = Math.min(MAX_SLIDER_MINUTES, newEndMinutes);
+
+        if (newEndMinutes - newStartMinutes < MIN_WINDOW_DURATION_MINUTES) {
+          if (newEndMinutes === MAX_SLIDER_MINUTES) {
+            newStartMinutes = newEndMinutes - MIN_WINDOW_DURATION_MINUTES;
+          } else { // newStartMinutes must be MIN_SLIDER_MINUTES
+            newEndMinutes = newStartMinutes + MIN_WINDOW_DURATION_MINUTES;
+          }
+        }
+      }
+      setViewWindow([Math.round(newStartMinutes), Math.round(newEndMinutes)]);
+    }
+  }, [isClient, selectedDate]);
+
 
    const chartConfig = useMemo(() => {
     return effectiveTaskTypeOptions.reduce((acc, option) => {
@@ -149,8 +194,13 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
             color = "hsl(var(--chart-4))";
             break;
           default:
+            // For any other custom types, or if one is added without explicit color mapping here
+            // assign from chart-5 or cycle through chart colors
+            color = "hsl(var(--chart-5))"; 
             break;
         }
+      } else {
+         color = "hsl(var(--chart-5))"; // Fallback for user-defined types not in defaults
       }
       
       acc[key] = {
@@ -234,7 +284,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     } else {
       setCurrentTimeLinePosition(null); 
     }
-  }, [selectedDate, viewWindow, tasks, refreshKey, isClient]);
+  }, [selectedDate, viewWindow, refreshKey, isClient]);
 
 
   const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80; 
@@ -337,6 +387,14 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                   scale="time" 
                   interval="preserveStartEnd" 
                   minTickGap={30} 
+                  ticks={
+                    // Generate ticks dynamically based on viewWindow, aiming for around 6-10 ticks
+                    // This is a simple example; more sophisticated tick generation might be needed
+                    Array.from(
+                      { length: Math.floor((viewWindow[1] - viewWindow[0]) / (4 * 60)) + 1 }, // e.g., every 4 hours
+                      (_, i) => Math.floor(viewWindow[0] / (4*60) + i) * (4*60)
+                    ).filter(tick => tick >= viewWindow[0] && tick <= viewWindow[1])
+                  }
                 />
                 <YAxis
                   type="category"
@@ -366,6 +424,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                         } else if (colorForCell.startsWith("hsl(")) { 
                            const valuesPart = colorForCell.substring(4, colorForCell.length - 1); 
                            colorForCell = `hsla(${valuesPart}, 0.5)`; 
+                        } else { // Fallback if color is not hsl (e.g. hex) - might need a proper parser
+                           colorForCell = `${colorForCell}80`; // Attempt to add alpha for hex
                         }
                       }
                       
@@ -401,3 +461,5 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
+
+    
