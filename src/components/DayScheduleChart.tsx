@@ -122,56 +122,14 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const [isClient, setIsClient] = useState(false);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig(); 
   const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
-  const [viewWindow, setViewWindow] = useState<[number, number]>([0 * 60, 24 * 60]); 
+  const [viewWindow, setViewWindow] = useState<[number, number]>([0 * 60, 8 * 60]); // Initial default, will be overridden by useEffect
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Effect to set the initial view window relative to current time
-  useEffect(() => {
-    if (isClient && selectedDate) {
-      const now = new Date();
-      const selectedDateEpochStartMs = Date.UTC(
-        selectedDate.getUTCFullYear(),
-        selectedDate.getUTCMonth(),
-        selectedDate.getUTCDate()
-      );
-      const currentMinutesRelativeToSelectedDayStart = (now.getTime() - selectedDateEpochStartMs) / 60000;
-
-      let newStartMinutes = currentMinutesRelativeToSelectedDayStart - (2 * 60); // Set start 2 hours before now
-      let newEndMinutes = currentMinutesRelativeToSelectedDayStart + (13 * 60);   // Set end 13 hours after now
-
-      // Bound by slider limits
-      newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
-      newEndMinutes = Math.min(MAX_SLIDER_MINUTES, newEndMinutes);
-
-      // Ensure minimum window duration
-      if (newEndMinutes - newStartMinutes < MIN_WINDOW_DURATION_MINUTES) {
-        // Attempt to center the minimum duration window around the current time
-        const currentMinuteForCentering = currentMinutesRelativeToSelectedDayStart;
-        newStartMinutes = currentMinuteForCentering - MIN_WINDOW_DURATION_MINUTES / 2;
-        newEndMinutes = currentMinuteForCentering + MIN_WINDOW_DURATION_MINUTES / 2;
-
-        // Re-bound and adjust if boundaries make it too small
-        newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
-        newEndMinutes = Math.min(MAX_SLIDER_MINUTES, newEndMinutes);
-
-        if (newEndMinutes - newStartMinutes < MIN_WINDOW_DURATION_MINUTES) {
-          if (newEndMinutes === MAX_SLIDER_MINUTES) {
-            newStartMinutes = newEndMinutes - MIN_WINDOW_DURATION_MINUTES;
-          } else { // newStartMinutes must be MIN_SLIDER_MINUTES
-            newEndMinutes = newStartMinutes + MIN_WINDOW_DURATION_MINUTES;
-          }
-        }
-      }
-      setViewWindow([Math.round(newStartMinutes), Math.round(newEndMinutes)]);
-    }
-  }, [isClient, selectedDate]);
-
-
-   const chartConfig = useMemo(() => {
+  const chartConfig = useMemo(() => {
     return effectiveTaskTypeOptions.reduce((acc, option) => {
       const key = taskValueToChartKey(option.value);
       let color = "hsl(var(--muted))";
@@ -266,6 +224,48 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   }, [tasks, selectedDate, viewWindow, effectiveTaskTypeOptions]); 
 
 
+  // Effect to set the initial view window relative to current time
+  useEffect(() => {
+    if (isClient && selectedDate) {
+      const now = new Date();
+      const selectedDateEpochStartMs = Date.UTC(
+        selectedDate.getUTCFullYear(),
+        selectedDate.getUTCMonth(),
+        selectedDate.getUTCDate()
+      );
+      const currentMinutesRelativeToSelectedDayStart = (now.getTime() - selectedDateEpochStartMs) / 60000;
+
+      let newStartMinutes = currentMinutesRelativeToSelectedDayStart; // Start at current time
+      let newEndMinutes = currentMinutesRelativeToSelectedDayStart + (8 * 60);   // Set end 8 hours after current time
+
+      // Bound by slider limits
+      newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
+      newEndMinutes = Math.min(MAX_SLIDER_MINUTES, newEndMinutes);
+
+      // Ensure minimum window duration
+      if (newEndMinutes - newStartMinutes < MIN_WINDOW_DURATION_MINUTES) {
+        // Attempt to center the minimum duration window around the current time if possible
+        const centerAttempt = currentMinutesRelativeToSelectedDayStart + (4 * 60); // Midpoint of desired 8hr window
+        newStartMinutes = centerAttempt - MIN_WINDOW_DURATION_MINUTES / 2;
+        newEndMinutes = centerAttempt + MIN_WINDOW_DURATION_MINUTES / 2;
+        
+        // Re-bound and adjust if boundaries make it too small
+        newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
+        newEndMinutes = Math.min(MAX_SLIDER_MINUTES, newEndMinutes);
+
+        if (newEndMinutes - newStartMinutes < MIN_WINDOW_DURATION_MINUTES) {
+          if (newEndMinutes === MAX_SLIDER_MINUTES) { // If hitting max limit
+            newStartMinutes = newEndMinutes - MIN_WINDOW_DURATION_MINUTES;
+          } else { // newStartMinutes must be MIN_SLIDER_MINUTES (hitting min limit)
+            newEndMinutes = newStartMinutes + MIN_WINDOW_DURATION_MINUTES;
+          }
+        }
+      }
+      setViewWindow([Math.round(newStartMinutes), Math.round(newEndMinutes)]);
+    }
+  }, [isClient, selectedDate]);
+
+
   useEffect(() => {
     if (!isClient) return;
 
@@ -333,7 +333,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 <CardTitle>Daily Schedule Graph</CardTitle>
                 <CardDescription>
                     Schedule for: {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.
-                    Times are displayed in UTC. Use slider to adjust view.
+                    Times are displayed in UTC. Use slider to adjust view. (Total range: 48 hours)
                 </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={handleRefreshNowLine} aria-label="Refresh 'Now' line">
