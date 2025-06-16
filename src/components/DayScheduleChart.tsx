@@ -122,7 +122,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   const [isClient, setIsClient] = useState(false);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig(); 
   const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
-  const [viewWindow, setViewWindow] = useState<[number, number]>([0 * 60, 8 * 60]); // Initial default, will be overridden by useEffect
+  const [viewWindow, setViewWindow] = useState<[number, number]>([0, 24*60]); // Initial default, will be overridden by useEffect
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -235,8 +235,8 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       );
       const currentMinutesRelativeToSelectedDayStart = (now.getTime() - selectedDateEpochStartMs) / 60000;
 
-      let newStartMinutes = currentMinutesRelativeToSelectedDayStart; // Start at current time
-      let newEndMinutes = currentMinutesRelativeToSelectedDayStart + (8 * 60);   // Set end 8 hours after current time
+      let newStartMinutes = currentMinutesRelativeToSelectedDayStart - (1 * 60); // now - 1 hour
+      let newEndMinutes = currentMinutesRelativeToSelectedDayStart + (9 * 60);   // now + 9 hours
 
       // Bound by slider limits
       newStartMinutes = Math.max(MIN_SLIDER_MINUTES, newStartMinutes);
@@ -245,7 +245,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
       // Ensure minimum window duration
       if (newEndMinutes - newStartMinutes < MIN_WINDOW_DURATION_MINUTES) {
         // Attempt to center the minimum duration window around the current time if possible
-        const centerAttempt = currentMinutesRelativeToSelectedDayStart + (4 * 60); // Midpoint of desired 8hr window
+        const centerAttempt = currentMinutesRelativeToSelectedDayStart + (4 * 60); // Midpoint of desired 10hr window (9 - (-1) = 10; 10/2 = 5; -1+5 = 4)
         newStartMinutes = centerAttempt - MIN_WINDOW_DURATION_MINUTES / 2;
         newEndMinutes = centerAttempt + MIN_WINDOW_DURATION_MINUTES / 2;
         
@@ -454,3 +454,5 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
     </Card>
   );
 }
+
+    
