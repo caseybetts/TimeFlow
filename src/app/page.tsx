@@ -9,7 +9,7 @@ import type { Task, TaskType, Spacecraft } from "@/types";
 import { SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2 } from "lucide-react";
+import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2, Calendar as CalendarIcon } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -29,6 +29,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
@@ -42,6 +47,7 @@ export default function HomePage() {
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importTargetDate, setImportTargetDate] = useState<Date | undefined>(new Date());
   const [importMode, setImportMode] = useState<"replace" | "add">("replace");
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
 
@@ -209,17 +215,19 @@ export default function HomePage() {
     }
 
     const header = [
-      "id", "name", "spacecraft", "startTime", 
+      "name", "spacecraft", "startTime", 
       "type", "preActionDuration", "postActionDuration", "isCompleted"
     ];
     const csvRows = [header.join(',')];
 
     tasks.forEach(task => {
+      const startTime = new Date(task.startTime);
+      const timeString = `${String(startTime.getUTCHours()).padStart(2,'0')}:${String(startTime.getUTCMinutes()).padStart(2,'0')}:${String(startTime.getUTCSeconds()).padStart(2,'0')}`;
+
       const row = [
-        escapeCsvField(task.id),
         escapeCsvField(task.name),
         escapeCsvField(task.spacecraft),
-        escapeCsvField(task.startTime), 
+        escapeCsvField(timeString), 
         escapeCsvField(task.type),
         escapeCsvField(task.preActionDuration),
         escapeCsvField(task.postActionDuration),
@@ -235,12 +243,12 @@ export default function HomePage() {
       const url = URL.createObjectURL(blob);
       const today = new Date().toISOString().slice(0, 10);
       link.setAttribute("href", url);
-      link.setAttribute("download", `timeflow_tasks_${today}.csv`);
+      link.setAttribute("download", `timeflow_tasks_template_${today}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast({ title: "Export Successful", description: "Tasks exported to CSV.", className: "bg-accent text-accent-foreground border-accent" });
+      toast({ title: "Export Successful", description: "Day-agnostic tasks template exported to CSV.", className: "bg-accent text-accent-foreground border-accent" });
     } else {
       toast({ title: "Export Failed", description: "Your browser does not support this feature.", variant: "destructive" });
     }
@@ -257,6 +265,10 @@ export default function HomePage() {
   const handleImportTasks = () => {
     if (!csvFile) {
       toast({ title: "No File Selected", description: "Please select a CSV file to import.", variant: "destructive" });
+      return;
+    }
+    if (!importTargetDate) {
+      toast({ title: "No Date Selected", description: "Please select a target date for the import.", variant: "destructive" });
       return;
     }
 
@@ -292,7 +304,6 @@ export default function HomePage() {
           errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted.");
       }
 
-
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
         if (values.length < headerLine.length && errors.length === 0) { 
@@ -303,17 +314,26 @@ export default function HomePage() {
 
         try {
           const csvSpacecraft = values[colIndices.spacecraft] as Spacecraft;
-          const csvStartTime = values[colIndices.startTime];
+          const csvTime = values[colIndices.startTime];
           const csvTaskType = values[colIndices.type] as TaskType;
 
           if (!SPACECRAFT_OPTIONS.includes(csvSpacecraft)) {
             errors.push(`Row ${i + 1}: Invalid spacecraft "${csvSpacecraft}".`);
             continue;
           }
-          if (isNaN(Date.parse(csvStartTime))) { 
-            errors.push(`Row ${i + 1}: Invalid startTime format "${csvStartTime}". Must be ISO 8601 format.`);
+
+          const timeParts = csvTime.match(/^(\d{2}):(\d{2})(:(\d{2}))?$/);
+          if (!timeParts) {
+            errors.push(`Row ${i + 1}: Invalid startTime format "${csvTime}". Must be HH:mm or HH:mm:ss.`);
             continue;
           }
+          
+          const hours = parseInt(timeParts[1], 10);
+          const minutes = parseInt(timeParts[2], 10);
+          const seconds = timeParts[4] ? parseInt(timeParts[4], 10) : 0;
+          
+          const combinedDateTime = new Date(importTargetDate!);
+          combinedDateTime.setUTCHours(hours, minutes, seconds, 0);
 
           const isValidTaskType = effectiveTaskTypeOptions.some(option => option.value === csvTaskType);
           if (!isValidTaskType) {
@@ -343,7 +363,7 @@ export default function HomePage() {
             id: crypto.randomUUID(),
             name,
             spacecraft: csvSpacecraft,
-            startTime: new Date(csvStartTime).toISOString(),
+            startTime: combinedDateTime.toISOString(),
             type: csvTaskType,
             preActionDuration: Math.max(0, preActionDuration),
             postActionDuration: Math.max(0, postActionDuration),
@@ -426,7 +446,7 @@ export default function HomePage() {
             {isDarkMode ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
           </Button>
           <Button onClick={handleExportTasks} variant="outline">
-            <Download className="mr-2 h-4 w-4" /> Export Tasks (CSV)
+            <Download className="mr-2 h-4 w-4" /> Export Template (CSV)
           </Button>
           <Button onClick={handleOpenDeleteAllConfirmation} variant="destructive" disabled={tasks.length === 0}>
             <Trash2 className="mr-2 h-4 w-4" /> Delete All
@@ -458,21 +478,44 @@ export default function HomePage() {
           <CardHeader>
             <CardTitle>Import Tasks from CSV</CardTitle>
             <CardDescription>
-              Upload a CSV file to import tasks. Header row required.
-              Columns: <strong>id</strong> (ignored), <strong>name</strong> (optional), <strong>spacecraft</strong> (required), 
-              <strong>startTime</strong> (required, ISO 8601 UTC format e.g., <code>YYYY-MM-DDTHH:mm:ss.sssZ</code>), 
-              <strong>type</strong> (required), <strong>preActionDuration</strong> (optional, minutes), 
-              <strong>postActionDuration</strong> (optional, minutes), <strong>isCompleted</strong> (optional, true/false).
+              Upload a day-agnostic CSV file to import tasks. Select a target date, and the times from the file will be applied to that date.
               <br />
-              Valid task type values are: {effectiveTaskTypeOptions.map(opt => `"${opt.value}"`).join(', ')}.
+              Required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (in `HH:mm` or `HH:mm:ss` format), <strong>type</strong>.
               <br />
-              If pre/post durations are not provided or invalid, they default from the task type's settings.
+              Optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="csvImporter">CSV File</Label>
-              <Input id="csvImporter" type="file" accept=".csv" onChange={handleFileChange} className="mt-1" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="csvImporter">CSV File</Label>
+                <Input id="csvImporter" type="file" accept=".csv" onChange={handleFileChange} className="mt-1" />
+              </div>
+              <div>
+                <Label>Target Date for Import (UTC)</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal mt-1",
+                        !importTargetDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {importTargetDate ? format(importTargetDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={importTargetDate}
+                      onSelect={setImportTargetDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
             <div>
               <Label>Import Mode</Label>
@@ -487,7 +530,7 @@ export default function HomePage() {
                 </div>
               </RadioGroup>
             </div>
-            <Button onClick={handleImportTasks} disabled={!csvFile}>
+            <Button onClick={handleImportTasks} disabled={!csvFile || !importTargetDate}>
               <Upload className="mr-2 h-4 w-4" /> Process Import
             </Button>
           </CardContent>
@@ -532,4 +575,3 @@ export default function HomePage() {
     </div>
   );
 }
-
