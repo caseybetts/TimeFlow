@@ -23,26 +23,30 @@ import {
 } from "@/components/ui/table";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
-import { PlusCircle, Trash2, SaveAll, Copy } from "lucide-react";
+import { PlusCircle, Trash2, SaveAll, Copy, Calendar as CalendarIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { Label } from "./ui/label";
+
 
 interface SpreadsheetTaskInputProps {
   onBatchAddTasks: (tasksToAdd: Omit<Task, "id" | "isCompleted">[]) => void;
 }
 
-const getUtcDateTimeLocalString = (date: Date): string => {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
+const getUtcTimeLocalString = (date: Date): string => {
   const hours = String(date.getUTCHours()).padStart(2, '0');
   const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  return `${hours}:${minutes}`;
 };
 
 export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputProps) {
   const [rows, setRows] = useState<SpreadsheetTaskRow[]>([]);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
   const { toast } = useToast();
+  const [targetDate, setTargetDate] = useState<Date | undefined>(new Date());
 
   const defaultTaskTypeOption = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0] : DEFAULT_TASK_TYPE_OPTIONS[0];
   const defaultSpacecraft = SPACECRAFT_OPTIONS[0];
@@ -55,7 +59,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         tempId: crypto.randomUUID(),
         name: "",
         spacecraft: defaultSpacecraft,
-        startTime: getUtcDateTimeLocalString(new Date()),
+        time: getUtcTimeLocalString(new Date()),
         type: defaultTaskTypeOption.value,
         preActionDuration: taskTypeDetails?.preActionDuration ?? 0,
         postActionDuration: taskTypeDetails?.postActionDuration ?? 0,
@@ -123,6 +127,14 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       });
       return;
     }
+     if (!targetDate) {
+      toast({
+        title: "No Date Selected",
+        description: "Please select a target date for the tasks.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     for (const row of rows) {
       const taskTypeDetails = getTaskTypeDetails(row.type, effectiveTaskTypeOptions);
@@ -136,12 +148,20 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       if (!taskName || taskName.trim() === "") {
         taskName = `${taskTypeDetails.label} - ${row.spacecraft}`;
       }
-
-      if (isNaN(Date.parse(row.startTime + 'Z'))) {
-         toast({ title: "Validation Error", description: `Invalid start time for task "${taskName}". Ensure it's full date and time.`, variant: "destructive" });
+      
+      const timeParts = row.time.match(/^(\d{2}):(\d{2})(:(\d{2}))?$/);
+      if (!timeParts) {
+         toast({ title: "Validation Error", description: `Invalid time format for task "${taskName}". Must be HH:mm.`, variant: "destructive" });
         isValid = false;
         break;
       }
+      
+      const hours = parseInt(timeParts[1], 10);
+      const minutes = parseInt(timeParts[2], 10);
+      
+      const combinedDateTime = new Date(targetDate);
+      combinedDateTime.setUTCHours(hours, minutes, 0, 0);
+
       
       const preActionDuration = row.preActionDuration !== undefined && !isNaN(Number(row.preActionDuration)) ? Number(row.preActionDuration) : taskTypeDetails.preActionDuration;
       const postActionDuration = row.postActionDuration !== undefined && !isNaN(Number(row.postActionDuration)) ? Number(row.postActionDuration) : taskTypeDetails.postActionDuration;
@@ -150,7 +170,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       tasksToAdd.push({
         name: taskName,
         spacecraft: row.spacecraft,
-        startTime: new Date(row.startTime + 'Z').toISOString(),
+        startTime: combinedDateTime.toISOString(),
         type: row.type,
         preActionDuration: Math.max(0, preActionDuration),
         postActionDuration: Math.max(0, postActionDuration),
@@ -171,12 +191,40 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
 
   return (
     <div className="my-8 p-4 border rounded-lg shadow-sm bg-card">
-      <h3 className="text-xl font-headline font-semibold text-foreground mb-4">
-        Batch Add Tasks (via Table)
-      </h3>
+        <div className="flex flex-col md:flex-row justify-between md:items-center mb-4">
+            <h3 className="text-xl font-headline font-semibold text-foreground mb-2 md:mb-0">
+                Batch Add Tasks (via Table)
+            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <Label htmlFor="batch-date-picker" className="text-sm font-medium whitespace-nowrap">Target Date (UTC)</Label>
+                 <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="batch-date-picker"
+                      variant={"outline"}
+                      className={cn(
+                        "w-full sm:w-[240px] justify-start text-left font-normal",
+                        !targetDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {targetDate ? format(targetDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={targetDate}
+                      onSelect={setTargetDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+            </div>
+        </div>
       {rows.length === 0 && (
         <p className="text-muted-foreground mb-4">
-          Click "Add Row" to start entering tasks in the table below. Pre/Post durations default from task type.
+          Click "Add Row" to start entering tasks. All times will be applied to the selected Target Date.
         </p>
       )}
       {rows.length > 0 && (
@@ -227,10 +275,10 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
                 </TableCell>
                 <TableCell>
                   <Input
-                    type="datetime-local"
-                    value={row.startTime}
+                    type="time"
+                    value={row.time}
                     onChange={(e) =>
-                      handleInputChange(row.tempId, "startTime", e.target.value)
+                      handleInputChange(row.tempId, "time", e.target.value)
                     }
                     className="h-9 text-xs"
                   />

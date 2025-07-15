@@ -11,10 +11,12 @@ export interface Task {
   id: string;
   name?: string;
   spacecraft: Spacecraft;
-  startTime: string; // ISO string, represents the start of the core event time in UTC
+  // Represents the start of the core event time in UTC.
+  // Pre-action duration is subtracted from this, post-action is added to this.
+  startTime: string; // ISO string 
   type: TaskType;
-  preActionDuration: number; // in minutes, duration of the phase before startTime, specific to this task
-  postActionDuration: number; // in minutes, duration of the phase after startTime, specific to this task
+  preActionDuration: number; // in minutes
+  postActionDuration: number; // in minutes
   isCompleted?: boolean;
 }
 
@@ -44,9 +46,8 @@ export interface SpreadsheetTaskRow {
   tempId: string;
   name?: string;
   spacecraft: Spacecraft;
-  startTime: string; // Store as string matching datetime-local input, represents core event time
+  time: string; // Store as string matching time input (HH:mm)
   type: TaskType;
   preActionDuration?: number; // Optional: user can specify, otherwise default from type
   postActionDuration?: number; // Optional: user can specify, otherwise default from type
 }
-
