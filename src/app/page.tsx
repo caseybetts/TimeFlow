@@ -481,7 +481,12 @@ export default function HomePage() {
         </section>
         
         <section>
-          <h2 className="text-2xl font-headline font-semibold text-foreground mb-4">Task List</h2>
+          <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-2xl font-headline font-semibold text-foreground">Task List</h2>
+            <span className="rounded-md border bg-card px-2.5 py-1 text-sm font-medium text-muted-foreground">
+              {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+            </span>
+          </div>
           <Timeline
             tasks={tasks}
             onEditTask={openEditModal}

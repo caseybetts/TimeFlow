@@ -1,9 +1,11 @@
 
 "use client";
 
+import { useState } from "react";
 import type { Task } from "@/types";
 import { TaskItem } from "./TaskItem";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import Image from "next/image";
 
 interface TimelineProps {
@@ -15,12 +17,18 @@ interface TimelineProps {
 }
 
 export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete, refreshKey }: TimelineProps) {
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+
   const sortedTasks = [...tasks].sort((a, b) => {
     // Sort by the actual start time (core task start time - preActionDuration)
     const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
     const effectiveStartTimeB = new Date(b.startTime).getTime() - (b.preActionDuration * 60000);
-    return effectiveStartTimeB - effectiveStartTimeA;
+    return effectiveStartTimeA - effectiveStartTimeB;
   });
+  const completedTaskCount = sortedTasks.filter((task) => task.isCompleted).length;
+  const visibleTasks = showCompletedTasks
+    ? sortedTasks
+    : sortedTasks.filter((task) => !task.isCompleted);
 
   if (sortedTasks.length === 0) {
     return (
@@ -33,19 +41,42 @@ export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete, re
   }
 
   return (
-    <ScrollArea className="mt-6 h-[calc(100vh-250px)] rounded-md border p-1 sm:p-4 bg-background shadow-inner">
-      <div className="space-y-1 sm:space-y-0">
-        {sortedTasks.map((task) => (
-          <TaskItem
-            key={task.id}
-            task={task}
-            onEdit={onEditTask}
-            onDelete={onDeleteTask}
-            onToggleComplete={onToggleComplete}
-            refreshKey={refreshKey}
-          />
-        ))}
+    <div className="mt-2 space-y-2">
+      {completedTaskCount > 0 && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowCompletedTasks((current) => !current)}
+          >
+            {showCompletedTasks ? "Hide" : "Show"} {completedTaskCount} Completed {completedTaskCount === 1 ? "Task" : "Tasks"}
+          </Button>
+        </div>
+      )}
+
+      <div className="relative h-[calc(100vh-250px)] overflow-hidden rounded-md border shadow-inner">
+        <div className="timeflow-task-list-surface pointer-events-none absolute inset-0" />
+        <ScrollArea className="relative z-10 h-full bg-transparent p-1 sm:p-4">
+          {visibleTasks.length > 0 ? (
+            <div className="space-y-1 sm:space-y-0">
+              {visibleTasks.map((task) => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onEdit={onEditTask}
+                  onDelete={onDeleteTask}
+                  onToggleComplete={onToggleComplete}
+                  refreshKey={refreshKey}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-[220px] items-center justify-center rounded-md bg-card/85 p-6 text-center text-sm text-muted-foreground backdrop-blur-sm">
+              All active tasks are clear. Use the button above to review completed tasks.
+            </div>
+          )}
+        </ScrollArea>
       </div>
-    </ScrollArea>
+    </div>
   );
 }

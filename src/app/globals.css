@@ -107,3 +107,56 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .timeflow-task-list-surface {
+    background:
+      linear-gradient(135deg, hsl(220 10% 13%) 0%, hsl(218 9% 18%) 48%, hsl(220 8% 11%) 100%),
+      radial-gradient(circle at 18px 24px, hsl(0 0% 100% / 0.1) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 92px 62px, hsl(0 0% 100% / 0.07) 0 1px, transparent 1.5px);
+    background-size: auto, 112px 112px, 168px 168px;
+  }
+
+  .timeflow-task-list-surface::before,
+  .timeflow-task-list-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .timeflow-task-list-surface::before {
+    background-image:
+      linear-gradient(to right, hsl(0 0% 100% / 0.075) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(0 0% 100% / 0.055) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  .timeflow-task-list-surface::after {
+    width: 28%;
+    background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.08), transparent);
+    transform: skewX(-18deg) translateX(-140%);
+    animation: timeflow-orbit-scan 44s linear infinite;
+  }
+
+  .timeflow-orbit-scan {
+    transform: skewX(-18deg) translateX(-140%);
+    animation: timeflow-orbit-scan 14s linear infinite;
+  }
+
+  @keyframes timeflow-orbit-scan {
+    from {
+      transform: skewX(-18deg) translateX(-140%);
+    }
+    to {
+      transform: skewX(-18deg) translateX(360%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .timeflow-task-list-surface::after,
+    .timeflow-orbit-scan {
+      animation: none;
+      opacity: 0;
+    }
+  }
+}
