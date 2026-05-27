@@ -50,6 +50,7 @@ export default function HomePage() {
   const [importTargetDate, setImportTargetDate] = useState<Date | undefined>(new Date());
   const [importMode, setImportMode] = useState<"replace" | "add">("replace");
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
+  const [nowRefreshKey, setNowRefreshKey] = useState(0);
 
 
   useEffect(() => {
@@ -78,6 +79,14 @@ export default function HomePage() {
       }
     }
   }, [isMounted]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setNowRefreshKey((prevKey) => prevKey + 1);
+    }, 60000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   const toggleDarkMode = () => {
     const newDarkModeState = !isDarkMode;
@@ -423,6 +432,10 @@ export default function HomePage() {
     };
     reader.readAsText(csvFile);
   };
+
+  const handleRefreshNowLine = () => {
+    setNowRefreshKey((prevKey) => prevKey + 1);
+  };
   
   if (!isMounted) {
     return (
@@ -459,7 +472,12 @@ export default function HomePage() {
 
       <main className="flex-grow space-y-8">
         <section>
-          <DayScheduleChart tasks={tasks} selectedDate={selectedDateForChart} />
+          <DayScheduleChart
+            tasks={tasks}
+            selectedDate={selectedDateForChart}
+            onRefreshNowLine={handleRefreshNowLine}
+            refreshSignal={nowRefreshKey}
+          />
         </section>
         
         <section>
@@ -469,6 +487,7 @@ export default function HomePage() {
             onEditTask={openEditModal}
             onDeleteTask={handleDeleteTask}
             onToggleComplete={handleToggleComplete}
+            refreshKey={nowRefreshKey}
           />
         </section>
 

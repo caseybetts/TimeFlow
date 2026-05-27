@@ -25,12 +25,12 @@ import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
 
 interface DayScheduleChartProps {
   tasks: Task[];
   selectedDate: Date;
+  onRefreshNowLine?: () => void;
+  refreshSignal?: number;
 }
 
 interface ProcessedChartDataPoint {
@@ -100,13 +100,9 @@ const CustomTooltipContentRenderer = ({ active, payload, effectiveTaskTypeOption
           zIndex: 1000 
         }}>
         <p style={{ fontWeight: '600', margin: '0 0 8px 0', borderBottom: '1px solid hsl(var(--border))', paddingBottom: '8px' }}>
-          {taskNameDisplay} <span style={{opacity: 0.7}}>({task.isCompleted ? "Completed" : "Pending"})</span>
+          {taskNameDisplay}
         </p>
-        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Overall Start:</span> {formatTaskTime(overallStartTimeISO)}</p>
-        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Core Event Time:</span> {formatTaskTime(task.startTime)}</p>
-        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Spacecraft:</span> {task.spacecraft}</p>
-        <p style={{ margin: '0 0 5px 0' }}><span style={{fontWeight: '500'}}>Preparation:</span> {task.preActionDuration} min</p>
-        <p style={{ margin: '0' }}><span style={{fontWeight: '500'}}>Follow-up:</span> {task.postActionDuration} min</p>
+        <p style={{ margin: '0' }}><span style={{fontWeight: '500'}}>Overall Start:</span> {formatTaskTime(overallStartTimeISO)}</p>
       </div>
     );
   }
@@ -118,7 +114,7 @@ const MIN_SLIDER_MINUTES = 0; // Represents 00:00 on selectedDate
 const MAX_SLIDER_MINUTES = 48 * 60; // Allows viewing up to 48 hours from selectedDate start
 const MIN_WINDOW_DURATION_MINUTES = 30; 
 
-export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps) {
+export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refreshSignal }: DayScheduleChartProps) {
   const [isClient, setIsClient] = useState(false);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig(); 
   const [currentTimeLinePosition, setCurrentTimeLinePosition] = useState<number | null>(null);
@@ -304,8 +300,14 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
   };
 
   const handleRefreshNowLine = () => {
-    setRefreshKey(prevKey => prevKey + 1); 
+    setRefreshKey(prevKey => prevKey + 1);
+    onRefreshNowLine?.();
   };
+
+  useEffect(() => {
+    if (refreshSignal === undefined) return;
+    setRefreshKey(prevKey => prevKey + 1);
+  }, [refreshSignal]);
 
   if (!isClient) {
     return (
@@ -333,13 +335,9 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 <CardTitle>Daily Schedule Graph</CardTitle>
                 <CardDescription>
                     Schedule for: {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.
-                    Times are displayed in UTC. Use slider to adjust view. (Total range: 48 hours)
+                    Times are displayed in UTC. Use slider to adjust view. (Total range: 48 hours) Click anywhere on the graph to refresh the "Now" line.
                 </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefreshNowLine} aria-label="Refresh 'Now' line">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh 'Now'
-            </Button>
         </div>
         <div className="pt-4 space-y-2">
             <Label htmlFor="time-range-slider" className="text-sm font-medium">
@@ -370,6 +368,7 @@ export function DayScheduleChart({ tasks, selectedDate }: DayScheduleChartProps)
                 data={chartData} 
                 margin={{ top: 5, right: 30, left: Math.min(250, yAxisWidth), bottom: 20 }} 
                 barCategoryGap="20%" 
+                onClick={handleRefreshNowLine}
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
                 <XAxis

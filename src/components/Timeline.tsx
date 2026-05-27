@@ -11,14 +11,15 @@ interface TimelineProps {
   onEditTask: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleComplete: (taskId: string) => void;
+  refreshKey: number;
 }
 
-export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete }: TimelineProps) {
+export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete, refreshKey }: TimelineProps) {
   const sortedTasks = [...tasks].sort((a, b) => {
     // Sort by the actual start time (core task start time - preActionDuration)
     const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
     const effectiveStartTimeB = new Date(b.startTime).getTime() - (b.preActionDuration * 60000);
-    return effectiveStartTimeA - effectiveStartTimeB;
+    return effectiveStartTimeB - effectiveStartTimeA;
   });
 
   if (sortedTasks.length === 0) {
@@ -41,6 +42,7 @@ export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete }: 
             onEdit={onEditTask}
             onDelete={onDeleteTask}
             onToggleComplete={onToggleComplete}
+            refreshKey={refreshKey}
           />
         ))}
       </div>
