@@ -1,11 +1,9 @@
 
 "use client";
 
-import { useState } from "react";
 import type { Task } from "@/types";
 import { TaskItem } from "./TaskItem";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import Image from "next/image";
 
 interface TimelineProps {
@@ -14,11 +12,17 @@ interface TimelineProps {
   onDeleteTask: (taskId: string) => void;
   onToggleComplete: (taskId: string) => void;
   refreshKey: number;
+  showCompletedTasks: boolean;
 }
 
-export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete, refreshKey }: TimelineProps) {
-  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
-
+export function Timeline({
+  tasks,
+  onEditTask,
+  onDeleteTask,
+  onToggleComplete,
+  refreshKey,
+  showCompletedTasks,
+}: TimelineProps) {
   const sortedTasks = [...tasks].sort((a, b) => {
     // Sort by the actual start time (core task start time - preActionDuration)
     const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
@@ -41,22 +45,9 @@ export function Timeline({ tasks, onEditTask, onDeleteTask, onToggleComplete, re
   }
 
   return (
-    <div className="mt-2 space-y-2">
-      {completedTaskCount > 0 && (
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowCompletedTasks((current) => !current)}
-          >
-            {showCompletedTasks ? "Hide" : "Show"} {completedTaskCount} Completed {completedTaskCount === 1 ? "Task" : "Tasks"}
-          </Button>
-        </div>
-      )}
-
-      <div className="relative h-[calc(100vh-250px)] overflow-hidden rounded-md border shadow-inner">
-        <div className="timeflow-task-list-surface pointer-events-none absolute inset-0" />
-        <ScrollArea className="relative z-10 h-full bg-transparent p-1 sm:p-4">
+    <div className="mt-2">
+      <div className="relative h-[calc(100vh-250px)] overflow-hidden rounded-md border-0 bg-card/95 shadow-inner backdrop-blur-sm">
+        <ScrollArea className="h-full bg-transparent p-1 sm:p-4">
           {visibleTasks.length > 0 ? (
             <div className="space-y-1 sm:space-y-0">
               {visibleTasks.map((task) => (

@@ -59,8 +59,8 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete, refreshKey 
   const taskNameDisplay = task.name || defaultTitle;
   const taskAccentColor = getTaskTypeChartColor(task.type);
 
-  const eventStartMs = new Date(overallStartTimeISO).getTime();
-  const remainingMs = eventStartMs - now.getTime();
+  const countdownTargetMs = new Date(coreEventTimeISO).getTime();
+  const remainingMs = countdownTargetMs - now.getTime();
   const isCountdownNegative = remainingMs <= 0;
   const remainingTotalMinutes = isCountdownNegative
     ? Math.floor(remainingMs / 60000)
@@ -73,7 +73,7 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete, refreshKey 
   return (
     <Card
       className={cn(
-        "mb-2 overflow-hidden border-l-4 bg-card/95 shadow-sm backdrop-blur-sm transition-all hover:bg-card hover:shadow-md",
+        "mb-0 overflow-hidden rounded-none border-0 border-b border-l-4 border-b-border/35 bg-card/88 shadow-none backdrop-blur-sm transition-colors last:border-b-0 hover:bg-card/95",
         task.isCompleted ? "opacity-60" : "",
         isOverdue ? "border-destructive" : ""
       )}
@@ -104,11 +104,11 @@ export function TaskItem({ task, onEdit, onDelete, onToggleComplete, refreshKey 
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   size="icon"
                   onClick={() => onDelete(task.id)}
                   aria-label={`Delete task ${taskNameDisplay}`}
-                  className="h-7 w-7"
+                  className="h-7 w-7 border-border/60 bg-background/40 text-muted-foreground hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

@@ -1,30 +1,15 @@
 
 "use client";
 
-import type { Task, TaskType, TaskTypeOption } from "@/types";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  ChartContainer,
-  type ChartConfig,
-  ChartLegendContent,
-} from "@/components/ui/chart";
+import type { Task, TaskType } from "@/types";
+import type { ChartConfig } from "@/components/ui/chart";
 import { useMemo, useState, useEffect } from "react";
 import { formatTaskTime, getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS, calculateEndTime } from "@/lib/task-utils";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DayScheduleChartProps {
   tasks: Task[];
@@ -35,8 +20,8 @@ interface DayScheduleChartProps {
 
 interface ProcessedChartDataPoint {
   id: string;
-  taskNameForAxis: string;
   timeRange: [number, number]; // [startMinuteRelativeToDay, endMinuteRelativeToDay]
+  laneIndex: number;
   fillColorKey: TaskType;
   originalTask: Task;
   tooltipLabel: string;
@@ -56,63 +41,12 @@ const formatMinutesToTimeLocal = (totalMinutes: number): string => {
   return `${String(displayHours).padStart(2, '0')}:${String(displayMinutes).padStart(2, '0')}`;
 };
 
-interface CustomTooltipInternalProps {
-  active?: boolean;
-  payload?: Array<{ payload: ProcessedChartDataPoint; [key: string]: any }>;
-  label?: string | number;
-  effectiveTaskTypeOptions: TaskTypeOption[];
-}
-
-const CustomTooltipContentRenderer = ({ active, payload, effectiveTaskTypeOptions }: CustomTooltipInternalProps) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-
-    if (!data) {
-        return (
-            <div style={{ backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', padding: '5px', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', zIndex: 1000 }}>
-                Error: Tooltip payload data missing.
-            </div>
-        );
-    }
-    if (!data.originalTask) {
-         return (
-            <div style={{ backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', padding: '5px', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', zIndex: 1000 }}>
-                Error: Original task data missing in tooltip. (Task name: {data.taskNameForAxis || 'Unknown'})
-            </div>
-        );
-    }
-
-    const task = data.originalTask;
-    const taskTypeDetailsEffective = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
-    const taskNameDisplay = task.name || `${taskTypeDetailsEffective?.label || task.type} - ${task.spacecraft}`;
-    
-    const overallStartTimeISO = calculateEndTime(task.startTime, -task.preActionDuration);
-
-    return (
-      <div style={{
-          backgroundColor: 'hsla(var(--background) / 0.9)',
-          border: '1px solid hsl(var(--border))',
-          padding: '10px',
-          borderRadius: 'var(--radius)',
-          boxShadow: '0 4px 6px hsla(var(--foreground) / 0.1)',
-          color: 'hsl(var(--foreground))',
-          fontSize: '0.875rem',
-          zIndex: 1000 
-        }}>
-        <p style={{ fontWeight: '600', margin: '0 0 8px 0', borderBottom: '1px solid hsl(var(--border))', paddingBottom: '8px' }}>
-          {taskNameDisplay}
-        </p>
-        <p style={{ margin: '0' }}><span style={{fontWeight: '500'}}>Overall Start:</span> {formatTaskTime(overallStartTimeISO)}</p>
-      </div>
-    );
-  }
-  return null;
-};
-
-
 const MIN_SLIDER_MINUTES = 0; // Represents 00:00 on selectedDate
 const MAX_SLIDER_MINUTES = 48 * 60; // Allows viewing up to 48 hours from selectedDate start
 const MIN_WINDOW_DURATION_MINUTES = 30; 
+const TIMELINE_LANE_HEIGHT = 30;
+const TIMELINE_TOP_PADDING = 12;
+const TIMELINE_BOTTOM_PADDING = 42;
 
 export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refreshSignal }: DayScheduleChartProps) {
   const [isClient, setIsClient] = useState(false);
@@ -191,6 +125,8 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
         return effectiveStartTimeA - effectiveStartTimeB;
     });
 
+    const laneEndMinutes: number[] = [];
+
     return tasksInView.map((task) => {
       const coreEventTimeMs = new Date(task.startTime).getTime();
       const actualStartMs = coreEventTimeMs - (task.preActionDuration * 60000);
@@ -205,12 +141,19 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
 
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
       const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
-      const taskNameForAxisDisplay = `${taskNameDisplay.substring(0,25)}${taskNameDisplay.length > 25 ? '...' : ''} (${task.spacecraft})`;
+
+      let laneIndex = laneEndMinutes.findIndex((laneEndMinute) => taskStartMinutesRelativeToDay >= laneEndMinute);
+      if (laneIndex === -1) {
+        laneIndex = laneEndMinutes.length;
+        laneEndMinutes.push(taskEndMinutesRelativeToDay);
+      } else {
+        laneEndMinutes[laneIndex] = taskEndMinutesRelativeToDay;
+      }
 
       return {
         id: task.id,
-        taskNameForAxis: taskNameForAxisDisplay,
         timeRange: [taskStartMinutesRelativeToDay, taskEndMinutesRelativeToDay] as [number, number],
+        laneIndex,
         fillColorKey: task.type, 
         originalTask: task,
         tooltipLabel: taskNameDisplay,
@@ -278,7 +221,13 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
   }, [selectedDate, viewWindow, refreshKey, isClient]);
 
 
-  const yAxisWidth = chartData.length > 0 ? Math.max(...chartData.map(d => d.taskNameForAxis.length)) * 6 + 40 : 80; 
+  const laneCount = chartData.length > 0
+    ? Math.max(...chartData.map((dataPoint) => dataPoint.laneIndex)) + 1
+    : 1;
+  const compactTimelineHeight = Math.max(
+    92,
+    TIMELINE_TOP_PADDING + TIMELINE_BOTTOM_PADDING + laneCount * TIMELINE_LANE_HEIGHT
+  );
 
   const xAxisTickFormatter = (value: number) => {
     const displayHourUTC = Math.floor(value / 60) % 24; 
@@ -309,38 +258,36 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
     setRefreshKey(prevKey => prevKey + 1);
   }, [refreshSignal]);
 
+  const xAxisTicks = useMemo(() => {
+    return Array.from(
+      { length: Math.floor((viewWindow[1] - viewWindow[0]) / (4 * 60)) + 1 },
+      (_, i) => Math.floor(viewWindow[0] / (4 * 60) + i) * (4 * 60)
+    ).filter(tick => tick >= viewWindow[0] && tick <= viewWindow[1]);
+  }, [viewWindow]);
+
+  const getTimelinePercent = (minute: number) => {
+    const clampedMinute = Math.min(viewWindow[1], Math.max(viewWindow[0], minute));
+    return ((clampedMinute - viewWindow[0]) / (viewWindow[1] - viewWindow[0])) * 100;
+  };
+
   if (!isClient) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Daily Schedule Graph</CardTitle>
-           <CardDescription>
-            Schedule for: {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.
-            Times are displayed in UTC. Use slider to adjust view.
-          </CardDescription>
+      <Card className="border-0 bg-card/95">
+        <CardHeader className="px-4 py-3">
           <div className="pt-4 space-y-2">
             <div className="h-6 w-full bg-muted rounded animate-pulse" />
           </div>
         </CardHeader>
-        <CardContent className="h-[400px] flex items-center justify-center text-muted-foreground">Loading chart...</CardContent>
+        <CardContent className="flex h-[180px] items-center justify-center px-4 py-3 text-muted-foreground">Loading chart...</CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-start">
-            <div>
-                <CardTitle>Daily Schedule Graph</CardTitle>
-                <CardDescription>
-                    Schedule for: {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.
-                    Times are displayed in UTC. Use slider to adjust view. (Total range: 48 hours) Click anywhere on the graph to refresh the "Now" line.
-                </CardDescription>
-            </div>
-        </div>
-        <div className="pt-4 space-y-2">
-            <Label htmlFor="time-range-slider" className="text-sm font-medium">
+    <Card className="border-0 bg-card/95">
+      <CardHeader className="px-4 pb-2 pt-3">
+        <div className="space-y-1 opacity-70 transition-opacity hover:opacity-100">
+            <Label htmlFor="time-range-slider" className="text-xs font-medium text-muted-foreground">
               Visible Time Range (UTC): {formatMinutesToTimeLocal(viewWindow[0])} - {formatMinutesToTimeLocal(viewWindow[1])}
             </Label>
             <Slider
@@ -350,104 +297,109 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
               step={15} 
               value={viewWindow}
               onValueChange={handleSliderChange}
-              className="w-full"
+              className="h-3 w-full [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:border-zinc-500 [&_[role=slider]]:bg-zinc-800 [&_[role=slider]]:shadow-sm [&_[role=slider]]:ring-offset-background [&_[data-orientation=horizontal]]:bg-zinc-800/70 [&_[data-orientation=horizontal]>span]:bg-zinc-500"
               aria-label="Time range slider"
             />
         </div>
       </CardHeader>
-      <CardContent className="min-h-[250px] flex flex-col justify-center">
+      <CardContent className="flex min-h-[130px] flex-col justify-center px-4 pb-4 pt-0">
         { (chartData.length === 0 && currentTimeLinePosition === null && isClient) ?
             <p className="text-muted-foreground text-center py-8">
               No tasks scheduled for this period on {selectedDate.toLocaleDateString('en-CA', { timeZone: 'UTC' })}.
             </p>
           :
-          <ChartContainer config={chartConfig} className="min-h-[200px] h-[calc(40px*var(--visible-tasks,10)+100px)] max-h-[800px] w-full" style={{ '--visible-tasks': Math.max(1, chartData.length) } as React.CSSProperties}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                layout="vertical"
-                data={chartData} 
-                margin={{ top: 5, right: 30, left: Math.min(250, yAxisWidth), bottom: 20 }} 
-                barCategoryGap="20%" 
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_8.5rem] lg:items-start">
+            <TooltipProvider>
+              <div
+                className="relative w-full overflow-hidden rounded-md bg-background/55"
+                style={{ height: compactTimelineHeight }}
                 onClick={handleRefreshNowLine}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
-                <XAxis
-                  type="number"
-                  dataKey="timeRange[0]" 
-                  domain={viewWindow} 
-                  tickFormatter={xAxisTickFormatter} 
-                  label={{ value: "Time (UTC)", position: "insideBottom", offset: -10, dy: 10 }}
-                  allowDecimals={false}
-                  scale="time" 
-                  interval="preserveStartEnd" 
-                  minTickGap={30} 
-                  ticks={
-                    Array.from(
-                      { length: Math.floor((viewWindow[1] - viewWindow[0]) / (4 * 60)) + 1 }, 
-                      (_, i) => Math.floor(viewWindow[0] / (4*60) + i) * (4*60)
-                    ).filter(tick => tick >= viewWindow[0] && tick <= viewWindow[1])
-                  }
-                />
-                <YAxis
-                  type="category"
-                  dataKey="id" 
-                  tickFormatter={(tickValue) => chartData.find(d => d.id === tickValue)?.taskNameForAxis || ''} 
-                  width={yAxisWidth} 
-                  interval={0} 
-                  domain={chartData.length > 0 ? undefined : ['No Tasks']} 
-                  ticks={chartData.length > 0 ? chartData.map(d => d.id) : []} 
-                />
-                <Tooltip
-                  cursor={{ fill: 'hsla(var(--muted), 0.5)' }} 
-                  content={(props) => <CustomTooltipContentRenderer {...props} effectiveTaskTypeOptions={effectiveTaskTypeOptions} />}
-                  wrapperStyle={{ zIndex: 1100 }}
-                />
-                <Legend content={<ChartLegendContent />} />
-                {chartData.length > 0 && (
-                  <Bar dataKey="timeRange" barSize={20} radius={[4, 4, 4, 4]}>
-                    {chartData.map((entry) => {
-                      const cellColorKey = taskValueToChartKey(entry.fillColorKey);
-                      let colorForCell = chartConfig[cellColorKey]?.color || "hsl(var(--muted))";
-                      
-                      if (entry.isCompleted) {
-                        if (colorForCell.startsWith("hsl(var(--")) { 
-                           const variablePart = colorForCell.substring(4, colorForCell.length - 1); 
-                           colorForCell = `hsla(${variablePart}, 0.5)`; 
-                        } else if (colorForCell.startsWith("hsl(")) { 
-                           const valuesPart = colorForCell.substring(4, colorForCell.length - 1); 
-                           colorForCell = `hsla(${valuesPart}, 0.5)`; 
-                        } else { 
-                           colorForCell = `${colorForCell}80`; 
-                        }
-                      }
-                      
-                      return (
-                        <Cell key={`cell-${entry.id}`} fill={colorForCell} />
-                      );
-                    })}
-                  </Bar>
-                )}
-                 {currentTimeLinePosition !== null && (
-                  <ReferenceLine
-                    x={currentTimeLinePosition} 
-                    stroke="hsl(var(--destructive))" 
-                    strokeWidth={2}
-                    strokeDasharray="8 4" 
-                    ifOverflow="hidden" 
-                    label={{
-                      value: "Now",
-                      position: "insideTopRight",
-                      fill: "hsl(var(--destructive))",
-                      fontSize: 12,
-                      fontWeight: "bold",
-                      dy: -10, 
-                      dx: 10   
-                    }}
-                  />
-                )}
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+                <div className="absolute inset-x-0 top-0" style={{ bottom: TIMELINE_BOTTOM_PADDING }}>
+                  {xAxisTicks.map((tick) => (
+                    <div
+                      key={`grid-${tick}`}
+                      className="absolute inset-y-0 border-l border-border/70"
+                      style={{ left: `${getTimelinePercent(tick)}%` }}
+                    />
+                  ))}
+                  {Array.from({ length: laneCount }).map((_, laneIndex) => (
+                    <div
+                      key={`lane-${laneIndex}`}
+                      className="absolute inset-x-0 border-t border-border/40"
+                      style={{ top: TIMELINE_TOP_PADDING + laneIndex * TIMELINE_LANE_HEIGHT + TIMELINE_LANE_HEIGHT / 2 }}
+                    />
+                  ))}
+                  {chartData.map((entry) => {
+                    const task = entry.originalTask;
+                    const startPercent = getTimelinePercent(entry.timeRange[0]);
+                    const endPercent = getTimelinePercent(entry.timeRange[1]);
+                    const widthPercent = Math.max(0.35, endPercent - startPercent);
+                    const chartKey = taskValueToChartKey(entry.fillColorKey);
+                    const taskColor = chartConfig[chartKey]?.color || "hsl(var(--muted))";
+                    const overallStartTimeISO = calculateEndTime(task.startTime, -task.preActionDuration);
+                    const overallEndTimeISO = calculateEndTime(task.startTime, task.postActionDuration);
+
+                    return (
+                      <Tooltip key={entry.id}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className="absolute h-4 cursor-default rounded-full shadow-sm ring-1 ring-background/70 transition-[height,top,filter] hover:h-5 hover:brightness-110"
+                            style={{
+                              top: TIMELINE_TOP_PADDING + entry.laneIndex * TIMELINE_LANE_HEIGHT + 6,
+                              left: `${startPercent}%`,
+                              width: `max(${widthPercent}%, 18px)`,
+                              backgroundColor: taskColor,
+                              opacity: entry.isCompleted ? 0.45 : 1,
+                            }}
+                            aria-label={entry.tooltipLabel}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <div className="space-y-1 text-sm">
+                            <p className="font-semibold">{entry.tooltipLabel}</p>
+                            <p className="text-muted-foreground">{task.spacecraft} | {getTaskTypeDetails(task.type, effectiveTaskTypeOptions)?.label || task.type}</p>
+                            <p>Core: {formatTaskTime(task.startTime)}</p>
+                            <p>Window: {formatTaskTime(overallStartTimeISO)} - {formatTaskTime(overallEndTimeISO)}</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                  {currentTimeLinePosition !== null && (
+                    <div
+                      className="absolute inset-y-0 border-l border-destructive/80"
+                      style={{ left: `${getTimelinePercent(currentTimeLinePosition)}%` }}
+                    >
+                      <span className="absolute -left-1 top-1 h-2 w-2 rounded-full bg-destructive shadow-[0_0_0_3px_hsl(var(--destructive)/0.14)]" />
+                    </div>
+                  )}
+                </div>
+                <div className="absolute inset-x-0 bottom-0 h-10 border-t border-border bg-background/80">
+                  {xAxisTicks.map((tick) => (
+                    <span
+                      key={`tick-${tick}`}
+                      className="absolute top-2 -translate-x-1/2 text-xs text-muted-foreground"
+                      style={{ left: `${getTimelinePercent(tick)}%` }}
+                    >
+                      {xAxisTickFormatter(tick)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </TooltipProvider>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground lg:flex-col lg:items-start lg:gap-2 lg:pt-1">
+              {effectiveTaskTypeOptions.map((option) => {
+                const chartKey = taskValueToChartKey(option.value);
+                return (
+                  <div key={option.value} className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartConfig[chartKey]?.color || "hsl(var(--muted))" }} />
+                    <span>{option.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         }
       </CardContent>
     </Card>

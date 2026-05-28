@@ -190,7 +190,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
   };
 
   return (
-    <div className="my-8 p-4 border rounded-lg shadow-sm bg-card">
+    <div className="my-8 rounded-lg border-0 bg-card p-4 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between md:items-center mb-4">
             <h3 className="text-xl font-headline font-semibold text-foreground mb-2 md:mb-0">
                 Batch Add Tasks (via Table)

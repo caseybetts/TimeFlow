@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +52,8 @@ export default function HomePage() {
   const [importMode, setImportMode] = useState<"replace" | "add">("replace");
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
   const [nowRefreshKey, setNowRefreshKey] = useState(0);
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const completedTaskCount = tasks.filter((task) => task.isCompleted).length;
 
 
   useEffect(() => {
@@ -446,31 +449,47 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col p-4 md:p-8 bg-background transition-colors duration-300">
-      <header className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-border">
-        <h1 className="text-4xl font-headline font-bold text-primary mb-4 sm:mb-0">
+    <div className="timeflow-page-shell min-h-screen flex flex-col p-4 md:p-8 transition-colors duration-300">
+      <header className="relative z-10 mb-6 flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-4xl font-headline font-bold text-primary">
           TimeFlow
         </h1>
-        <div className="flex items-center space-x-2 sm:space-x-4">
-           <Button variant="outline" size="icon" onClick={() => setIsSettingsModalOpen(true)} aria-label="Configure Task Types">
-            <Settings className="h-[1.2rem] w-[1.2rem]" />
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 rounded-md bg-card/70 p-1 shadow-sm backdrop-blur-sm">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSettingsModalOpen(true)}
+              aria-label="Configure Task Types"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleDarkMode}
+              aria-label="Toggle dark mode"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          </div>
+          <Button onClick={handleExportTasks} variant="outline" className="h-9 border-border/60 bg-card/80 px-3 text-muted-foreground hover:bg-card hover:text-foreground">
+            <Download className="mr-2 h-4 w-4" /> Export CSV
           </Button>
-          <Button variant="outline" size="icon" onClick={toggleDarkMode} aria-label="Toggle dark mode">
-            {isDarkMode ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
-          </Button>
-          <Button onClick={handleExportTasks} variant="outline">
-            <Download className="mr-2 h-4 w-4" /> Export Template (CSV)
-          </Button>
-          <Button onClick={handleOpenDeleteAllConfirmation} variant="destructive" disabled={tasks.length === 0}>
-            <Trash2 className="mr-2 h-4 w-4" /> Delete All
-          </Button>
-          <Button onClick={openAddModal} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Task (Modal)
-          </Button>
+          <div className="flex items-center gap-2 border-l border-border/70 pl-3">
+            <Button onClick={handleOpenDeleteAllConfirmation} variant="outline" disabled={tasks.length === 0} className="h-9 border-destructive/30 bg-destructive/10 px-3 text-destructive hover:bg-destructive hover:text-destructive-foreground">
+              <Trash2 className="mr-2 h-4 w-4" /> Clear
+            </Button>
+            <Button onClick={openAddModal} className="h-9 bg-primary px-3 hover:bg-primary/90 text-primary-foreground">
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Task
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="flex-grow space-y-8">
+      <main className="relative z-10 flex-grow space-y-8">
         <section>
           <DayScheduleChart
             tasks={tasks}
@@ -481,11 +500,23 @@ export default function HomePage() {
         </section>
         
         <section>
-          <div className="mb-4 flex items-center gap-3">
-            <h2 className="text-2xl font-headline font-semibold text-foreground">Task List</h2>
-            <span className="rounded-md border bg-card px-2.5 py-1 text-sm font-medium text-muted-foreground">
-              {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
-            </span>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-headline font-semibold text-foreground">Task List</h2>
+              <span className="rounded-md border bg-card px-2.5 py-1 text-sm font-medium text-muted-foreground">
+                {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+              </span>
+            </div>
+            {completedTaskCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCompletedTasks((current) => !current)}
+                className="h-8 border-border/60 bg-card/95 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-card"
+              >
+                {showCompletedTasks ? "Hide" : "Show"} {completedTaskCount} Completed {completedTaskCount === 1 ? "Task" : "Tasks"}
+              </Button>
+            )}
           </div>
           <Timeline
             tasks={tasks}
@@ -493,12 +524,13 @@ export default function HomePage() {
             onDeleteTask={handleDeleteTask}
             onToggleComplete={handleToggleComplete}
             refreshKey={nowRefreshKey}
+            showCompletedTasks={showCompletedTasks}
           />
         </section>
 
         <SpreadsheetTaskInput onBatchAddTasks={handleBatchAddTasks} />
 
-        <Card>
+        <Card className="border-0">
           <CardHeader>
             <CardTitle>Import Tasks from CSV</CardTitle>
             <CardDescription>
@@ -593,8 +625,17 @@ export default function HomePage() {
         </AlertDialogContent>
       </AlertDialog>
       
-      <footer className="mt-8 pt-4 text-center text-sm text-muted-foreground border-t border-border">
-        <p>&copy; {new Date().getFullYear()} TimeFlow. Stay organized, effortlessly.</p>
+      <footer className="relative z-10 mt-8 pt-4 text-center text-sm text-muted-foreground border-t border-border">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p className="inline-block cursor-default">&copy; {new Date().getFullYear()} TimeFlow. Stay organized, effortlessly.</p>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Created by Casey Betts with the help of AI</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </footer>
     </div>
   );

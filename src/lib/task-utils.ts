@@ -14,7 +14,7 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
   },
   {
     value: "rtp",
-    label: "RTP",
+    label: "CAD Check",
     icon: Satellite,
     color: "bg-purple-500",
     preActionDuration: 30,
@@ -30,7 +30,7 @@ export const DEFAULT_TASK_TYPE_OPTIONS: Readonly<TaskTypeOption[]> = [
   },
   {
     value: "appointment",
-    label: "Appointment",
+    label: "Other",
     icon: CalendarClock,
     color: "bg-teal-500",
     preActionDuration: 0,
