@@ -1,0 +1,73 @@
+
+"use client";
+
+import type { Task } from "@/types";
+import { TaskItem } from "./TaskItem";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import Image from "next/image";
+
+interface TimelineProps {
+  tasks: Task[];
+  onEditTask: (task: Task) => void;
+  onDeleteTask: (taskId: string) => void;
+  onToggleComplete: (taskId: string) => void;
+  refreshKey: number;
+  showCompletedTasks: boolean;
+}
+
+export function Timeline({
+  tasks,
+  onEditTask,
+  onDeleteTask,
+  onToggleComplete,
+  refreshKey,
+  showCompletedTasks,
+}: TimelineProps) {
+  const sortedTasks = [...tasks].sort((a, b) => {
+    // Sort by the actual start time (core task start time - preActionDuration)
+    const effectiveStartTimeA = new Date(a.startTime).getTime() - (a.preActionDuration * 60000);
+    const effectiveStartTimeB = new Date(b.startTime).getTime() - (b.preActionDuration * 60000);
+    return effectiveStartTimeA - effectiveStartTimeB;
+  });
+  const completedTaskCount = sortedTasks.filter((task) => task.isCompleted).length;
+  const visibleTasks = showCompletedTasks
+    ? sortedTasks
+    : sortedTasks.filter((task) => !task.isCompleted);
+
+  if (sortedTasks.length === 0) {
+    return (
+      <div className="mt-8 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-border rounded-lg bg-card min-h-[300px]">
+        <Image src="https://placehold.co/200x200.png" alt="No tasks" width={150} height={150} data-ai-hint="empty calendar illustration" className="mb-6 rounded-lg opacity-70" />
+        <h3 className="text-xl font-headline text-foreground mb-2">Your schedule is empty!</h3>
+        <p className="text-muted-foreground">Add some tasks to get started with TimeFlow.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <div className="relative h-[calc(100vh-250px)] overflow-hidden rounded-md border-0 bg-card/95 shadow-inner backdrop-blur-sm">
+        <ScrollArea className="h-full bg-transparent p-1 sm:p-4">
+          {visibleTasks.length > 0 ? (
+            <div className="space-y-1 sm:space-y-0">
+              {visibleTasks.map((task) => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onEdit={onEditTask}
+                  onDelete={onDeleteTask}
+                  onToggleComplete={onToggleComplete}
+                  refreshKey={refreshKey}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-[220px] items-center justify-center rounded-md bg-card/85 p-6 text-center text-sm text-muted-foreground backdrop-blur-sm">
+              All active tasks are clear. Use the button above to review completed tasks.
+            </div>
+          )}
+        </ScrollArea>
+      </div>
+    </div>
+  );
+}

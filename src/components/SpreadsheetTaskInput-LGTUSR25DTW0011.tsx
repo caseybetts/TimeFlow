@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import type { SpreadsheetTaskRow, Task, TaskType, Spacecraft } from "@/types";
-import { SELECTABLE_SPACECRAFT_OPTIONS } from "@/types";
+import { SPACECRAFT_OPTIONS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,7 +49,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
   const [targetDate, setTargetDate] = useState<Date | undefined>(new Date());
 
   const defaultTaskTypeOption = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0] : DEFAULT_TASK_TYPE_OPTIONS[0];
-  const defaultSpacecraft = SELECTABLE_SPACECRAFT_OPTIONS[0];
+  const defaultSpacecraft = SPACECRAFT_OPTIONS[0];
 
   const handleAddRow = () => {
      const taskTypeDetails = getTaskTypeDetails(defaultTaskTypeOption.value, effectiveTaskTypeOptions);
@@ -146,7 +146,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       
       let taskName = row.name;
       if (!taskName || taskName.trim() === "") {
-        taskName = row.spacecraft ? `${taskTypeDetails.label} - ${row.spacecraft}` : taskTypeDetails.label;
+        taskName = `${taskTypeDetails.label} - ${row.spacecraft}`;
       }
       
       const timeParts = row.time.match(/^(\d{2}):(\d{2})(:(\d{2}))?$/);
@@ -265,7 +265,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
                       <SelectValue placeholder="Select spacecraft" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SELECTABLE_SPACECRAFT_OPTIONS.map((option) => (
+                      {SPACECRAFT_OPTIONS.map((option) => (
                         <SelectItem key={option} value={option}>
                           {option}
                         </SelectItem>

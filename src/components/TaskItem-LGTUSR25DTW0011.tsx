@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import type { Task } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
@@ -22,8 +22,6 @@ interface TaskItemProps {
   onDelete: (taskId: string) => void;
   onToggleComplete: (taskId: string) => void;
   refreshKey: number;
-  countdownUpdateDelayMs?: number;
-  isNextUpcoming?: boolean;
 }
 
 const getTaskTypeChartColor = (taskType: Task["type"]): string => {
@@ -41,15 +39,7 @@ const getTaskTypeChartColor = (taskType: Task["type"]): string => {
   }
 };
 
-export function TaskItem({
-  task,
-  onEdit,
-  onDelete,
-  onToggleComplete,
-  refreshKey,
-  countdownUpdateDelayMs = 0,
-  isNextUpcoming = false,
-}: TaskItemProps) {
+export function TaskItem({ task, onEdit, onDelete, onToggleComplete, refreshKey }: TaskItemProps) {
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
   
   const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
@@ -61,27 +51,17 @@ export function TaskItem({
   const overallStartTimeISO = calculateEndTime(coreEventTimeISO, -task.preActionDuration);
   const overallEndTimeISO = calculateEndTime(coreEventTimeISO, task.postActionDuration);
   
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setNow(new Date());
-    }, countdownUpdateDelayMs);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [refreshKey, countdownUpdateDelayMs]);
-
+  const now = useMemo(() => new Date(), [refreshKey]);
   const isOverdue = new Date(overallEndTimeISO) < now && !task.isCompleted;
 
   const taskDisplayLabel = taskTypeDetails?.label || task.type;
-  const defaultTitle = task.spacecraft ? `${taskDisplayLabel} - ${task.spacecraft}` : taskDisplayLabel;
+  const defaultTitle = `${taskDisplayLabel} - ${task.spacecraft}`;
   const taskNameDisplay = task.name || defaultTitle;
   const taskAccentColor = getTaskTypeChartColor(task.type);
 
   const countdownTargetMs = new Date(coreEventTimeISO).getTime();
   const remainingMs = countdownTargetMs - now.getTime();
   const isCountdownNegative = remainingMs <= 0;
-  const usesEmphasizedText = isNextUpcoming || (isCountdownNegative && !task.isCompleted);
   const remainingTotalMinutes = isCountdownNegative
     ? Math.floor(remainingMs / 60000)
     : Math.ceil(remainingMs / 60000);
@@ -97,20 +77,10 @@ export function TaskItem({
         task.isCompleted ? "opacity-60" : "",
         isOverdue ? "border-destructive" : ""
       )}
-      style={{
-        borderLeftColor: isOverdue ? undefined : taskAccentColor,
-        backgroundColor: isNextUpcoming
-          ? `color-mix(in srgb, ${taskAccentColor} 8%, hsl(var(--card)) 92%)`
-          : undefined,
-      }}
+      style={{ borderLeftColor: isOverdue ? undefined : taskAccentColor }}
     >
       <CardContent className="p-2 sm:p-3">
-        <div className={cn(
-          "grid items-center gap-2 sm:gap-3",
-          usesEmphasizedText
-            ? "grid-cols-[auto_auto_7.25rem_4.75rem_minmax(9rem,0.7fr)_minmax(17rem,1.3fr)_2.5rem]"
-            : "grid-cols-[auto_auto_5.75rem_4.25rem_minmax(8rem,0.7fr)_minmax(16rem,1.3fr)_2.5rem]"
-        )}>
+        <div className="grid grid-cols-[auto_auto_5.75rem_4.25rem_minmax(8rem,0.7fr)_minmax(16rem,1.3fr)_2.5rem] items-center gap-2 sm:gap-3">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -149,20 +119,20 @@ export function TaskItem({
             </Tooltip>
           </TooltipProvider>
 
-          <span className={cn("font-medium tabular-nums text-foreground", usesEmphasizedText ? "text-lg" : "text-sm")}>
+          <span className="text-sm font-medium tabular-nums text-foreground">
             {formatTaskTime(coreEventTimeISO)}
           </span>
 
-          <span className={cn("font-semibold text-muted-foreground", usesEmphasizedText ? "text-lg" : "text-sm")}>
+          <span className="text-sm font-semibold text-muted-foreground">
             {task.spacecraft}
           </span>
 
           <div className="min-w-0">
-            <CardTitle className={cn("truncate font-semibold leading-tight", usesEmphasizedText ? "text-2xl" : "text-base", task.isCompleted ? "line-through text-muted-foreground" : "")}>
+            <CardTitle className={cn("truncate text-base font-semibold leading-tight", task.isCompleted ? "line-through text-muted-foreground" : "")}>
               {taskNameDisplay}
             </CardTitle>
-            <div className={cn("mt-0.5 flex items-center text-muted-foreground", usesEmphasizedText ? "gap-2 text-sm" : "gap-1.5 text-xs")}>
-              <span className={cn("rounded-full", usesEmphasizedText ? "h-2.5 w-2.5" : "h-2 w-2")} style={{ backgroundColor: taskAccentColor }} />
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: taskAccentColor }} />
               <span>{taskDisplayLabel}</span>
               {isOverdue && (
                 <TooltipProvider>
@@ -183,8 +153,7 @@ export function TaskItem({
             <Clock className="h-6 w-6 shrink-0" style={{ color: taskAccentColor }} />
             <span
               className={cn(
-                "font-mono font-semibold leading-none tabular-nums",
-                usesEmphasizedText ? "text-5xl" : "text-3xl",
+                "font-mono text-3xl font-semibold leading-none tabular-nums",
                 isCountdownNegative && !task.isCompleted ? "animate-pulse text-destructive" : "text-foreground"
               )}
             >

@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Task, TaskType, Spacecraft } from "@/types";
-import { TASK_TYPES, SPACECRAFT_OPTIONS } from "@/types";
+import { TASK_TYPES, SPACECRAFT_OPTIONS, SELECTABLE_SPACECRAFT_OPTIONS } from "@/types";
 import { getTaskTypeDetails } from "@/lib/task-utils";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { PlusCircle, Edit3 } from "lucide-react";
@@ -74,7 +74,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
 
   const defaultInitialUtcTimeForInput = getUtcDateTimeLocalString(new Date());
   const defaultTaskType = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
-  const defaultSpacecraft = SPACECRAFT_OPTIONS[0];
+  const defaultSpacecraft = SELECTABLE_SPACECRAFT_OPTIONS[0];
   const defaultTaskTypeDetails = getTaskTypeDetails(defaultTaskType, effectiveTaskTypeOptions);
 
 
@@ -144,7 +144,9 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
     
     let taskName = values.name;
     if (!taskName || taskName.trim() === "") {
-      taskName = `${selectedTaskTypeDetails?.label || values.type} - ${values.spacecraft}`;
+      taskName = values.spacecraft
+        ? `${selectedTaskTypeDetails?.label || values.type} - ${values.spacecraft}`
+        : `${selectedTaskTypeDetails?.label || values.type}`;
     }
 
     const task: Task = {
@@ -197,7 +199,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {SPACECRAFT_OPTIONS.map((option) => (
+                      {SELECTABLE_SPACECRAFT_OPTIONS.map((option) => (
                         <SelectItem key={option} value={option}>
                           {option}
                         </SelectItem>

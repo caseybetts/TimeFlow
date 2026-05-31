@@ -4,8 +4,12 @@ import type { LucideIcon } from 'lucide-react';
 export const TASK_TYPES = ["fsv", "rtp", "tl", "appointment"] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 
-export const SPACECRAFT_OPTIONS = ["GE01", "WV01", "WV02", "WV03", "LG01", "LG02", "LG03", "LG04", "LG05", "LG06"] as const;
+export const BLANK_SPACECRAFT = "" as const;
+export const SPACECRAFT_OPTIONS = [BLANK_SPACECRAFT, "GE01", "WV01", "WV02", "WV03", "LG01", "LG02", "LG03", "LG04", "LG05", "LG06"] as const;
 export type Spacecraft = (typeof SPACECRAFT_OPTIONS)[number];
+export const SELECTABLE_SPACECRAFT_OPTIONS = SPACECRAFT_OPTIONS.filter(
+  (option): option is Exclude<Spacecraft, ""> => option !== BLANK_SPACECRAFT
+);
 
 export interface Task {
   id: string;

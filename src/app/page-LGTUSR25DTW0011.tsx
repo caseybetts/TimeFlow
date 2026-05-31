@@ -6,10 +6,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { TaskForm } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
 import type { Task, TaskType, Spacecraft } from "@/types";
-import { BLANK_SPACECRAFT, SPACECRAFT_OPTIONS } from "@/types";
+import { SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2, Calendar as CalendarIcon, ClipboardPaste } from "lucide-react";
+import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2, Calendar as CalendarIcon } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -17,7 +17,6 @@ import { SpreadsheetTaskInput } from "@/components/SpreadsheetTaskInput";
 import { getTaskTypeDetails } from "@/lib/task-utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -36,105 +35,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-const normalizeCsvHeader = (header: string) =>
-  header.trim().replace(/^\uFEFF/, "").toLowerCase().replace(/^"|"$/g, "").replace(/[\s_-]/g, "");
-
-const parseCsvLine = (line: string): string[] => {
-  const values: string[] = [];
-  let currentValue = "";
-  let isInQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const character = line[i];
-    const nextCharacter = line[i + 1];
-
-    if (character === '"' && isInQuotes && nextCharacter === '"') {
-      currentValue += '"';
-      i++;
-    } else if (character === '"') {
-      isInQuotes = !isInQuotes;
-    } else if (character === "," && !isInQuotes) {
-      values.push(currentValue.trim());
-      currentValue = "";
-    } else {
-      currentValue += character;
-    }
-  }
-
-  values.push(currentValue.trim());
-  return values;
-};
-
-const getCsvValue = (values: string[], columnIndex: number) =>
-  columnIndex >= 0 ? values[columnIndex]?.trim() ?? "" : "";
-
-const parseUtcTimeOnDate = (timeValue: string, targetDate: Date): Date | null => {
-  const timeParts = timeValue.trim().match(/^(\d{1,2}):(\d{2})(:(\d{2}))?$/);
-  if (!timeParts) {
-    return null;
-  }
-
-  const hours = Number(timeParts[1]);
-  const minutes = Number(timeParts[2]);
-  const seconds = timeParts[4] ? Number(timeParts[4]) : 0;
-
-  if (
-    !Number.isInteger(hours) ||
-    !Number.isInteger(minutes) ||
-    !Number.isInteger(seconds) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59 ||
-    seconds < 0 ||
-    seconds > 59
-  ) {
-    return null;
-  }
-
-  const combinedDateTime = new Date(targetDate);
-  combinedDateTime.setUTCHours(hours, minutes, seconds, 0);
-  return combinedDateTime;
-};
-
-const parseCompactUtcTimeOnDate = (timeValue: string, targetDate: Date): Date | null => {
-  const timeParts = timeValue.trim().match(/^([01]\d|2[0-3])([0-5]\d)$/);
-  if (!timeParts) {
-    return null;
-  }
-
-  const combinedDateTime = new Date(targetDate);
-  combinedDateTime.setUTCHours(Number(timeParts[1]), Number(timeParts[2]), 0, 0);
-  return combinedDateTime;
-};
-
-const HIGH_PRIORITY_TIME_GROUP_PATTERN =
-  /(^|[^/\d])((?:[01]\d|2[0-3])[0-5]\d(?:\/(?:[01]\d|2[0-3])[0-5]\d)+)(?=$|[^/\d])/g;
-
-const extractHighPriorityTimeGroups = (pastedText: string, targetDate: Date) => {
-  const groups: Date[][] = [];
-
-  pastedText.split(/\r\n|\n/).forEach((line) => {
-    HIGH_PRIORITY_TIME_GROUP_PATTERN.lastIndex = 0;
-    const lineTimes: Date[] = [];
-    let match: RegExpExecArray | null;
-
-    while ((match = HIGH_PRIORITY_TIME_GROUP_PATTERN.exec(line)) !== null) {
-      match[2].split("/").forEach((timeValue) => {
-        const dateTime = parseCompactUtcTimeOnDate(timeValue, targetDate);
-        if (dateTime) {
-          lineTimes.push(dateTime);
-        }
-      });
-    }
-
-    if (lineTimes.length > 0) {
-      groups.push(lineTimes);
-    }
-  });
-
-  return groups;
-};
 
 export default function HomePage() {
   const [tasks, setTasks] = useTasks();
@@ -148,7 +48,6 @@ export default function HomePage() {
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [highPriorityPasteText, setHighPriorityPasteText] = useState("");
   const [importTargetDate, setImportTargetDate] = useState<Date | undefined>(new Date());
   const [importMode, setImportMode] = useState<"replace" | "add">("replace");
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
@@ -375,57 +274,6 @@ export default function HomePage() {
     }
   };
 
-  const handleImportHighPriorityPaste = () => {
-    if (!importTargetDate) {
-      toast({ title: "No Date Selected", description: "Please select a target date for the import.", variant: "destructive" });
-      return;
-    }
-
-    if (!highPriorityPasteText.trim()) {
-      toast({ title: "No Text Entered", description: "Paste text containing high priority FSV times first.", variant: "destructive" });
-      return;
-    }
-
-    const timeGroups = extractHighPriorityTimeGroups(highPriorityPasteText, importTargetDate);
-    if (timeGroups.length === 0) {
-      toast({
-        title: "No High Pri Times Found",
-        description: "No valid slash-separated hhmm time groups were found.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const fsvTaskTypeDetails = getTaskTypeDetails("fsv", effectiveTaskTypeOptions);
-    const importedTasks: Task[] = timeGroups.flatMap((group, groupIndex) => {
-      const taskName = `High Pri ${groupIndex + 1}`;
-
-      return group.map((dateTime) => ({
-        id: crypto.randomUUID(),
-        name: taskName,
-        spacecraft: BLANK_SPACECRAFT,
-        startTime: dateTime.toISOString(),
-        type: "fsv" as TaskType,
-        preActionDuration: fsvTaskTypeDetails?.preActionDuration ?? 0,
-        postActionDuration: fsvTaskTypeDetails?.postActionDuration ?? 0,
-        isCompleted: false,
-      }));
-    });
-
-    if (importMode === "replace") {
-      setTasks(importedTasks);
-    } else {
-      setTasks((prevTasks) => [...prevTasks, ...importedTasks]);
-    }
-
-    toast({
-      title: "High Pri Import Successful",
-      description: `${importedTasks.length} FSV task(s) imported from ${timeGroups.length} line group(s).`,
-      className: "bg-accent text-accent-foreground border-accent",
-    });
-    setHighPriorityPasteText("");
-  };
-
   const handleImportTasks = () => {
     if (!csvFile) {
       toast({ title: "No File Selected", description: "Please select a CSV file to import.", variant: "destructive" });
@@ -450,22 +298,9 @@ export default function HomePage() {
         return;
       }
 
-      const headerLine = parseCsvLine(lines[0]).map(normalizeCsvHeader);
+      const headerLine = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
       const importedTasks: Task[] = [];
       const errors: string[] = [];
-
-      const tlTrackerColIndices = {
-        quantity: headerLine.indexOf("quantity"),
-        spacecraft: headerLine.indexOf("scid"),
-        acquisitionTime: headerLine.indexOf("acquisitiontime"),
-        needsCadCheck: headerLine.indexOf("needscadcheck"),
-      };
-
-      const isTlMonitoringTrackerCsv =
-        tlTrackerColIndices.quantity !== -1 &&
-        tlTrackerColIndices.spacecraft !== -1 &&
-        tlTrackerColIndices.acquisitionTime !== -1 &&
-        tlTrackerColIndices.needsCadCheck !== -1;
 
       const colIndices = {
         name: headerLine.indexOf("name"),
@@ -476,115 +311,13 @@ export default function HomePage() {
         postActionDuration: headerLine.indexOf("postactionduration"),
         isCompleted: headerLine.indexOf("iscompleted"),
       };
-
-      if (isTlMonitoringTrackerCsv) {
-        const tlTaskTypeDetails = getTaskTypeDetails("tl", effectiveTaskTypeOptions);
-        const cadCheckTaskTypeDetails = getTaskTypeDetails("rtp", effectiveTaskTypeOptions);
-
-        for (let i = 1; i < lines.length; i++) {
-          const values = parseCsvLine(lines[i]);
-          const quantity = getCsvValue(values, tlTrackerColIndices.quantity);
-          const csvSpacecraft = getCsvValue(values, tlTrackerColIndices.spacecraft) as Spacecraft;
-          const acquisitionTime = getCsvValue(values, tlTrackerColIndices.acquisitionTime);
-          const needsCadCheck = getCsvValue(values, tlTrackerColIndices.needsCadCheck);
-
-          if (!quantity && !csvSpacecraft && !acquisitionTime && !needsCadCheck) {
-            continue;
-          }
-
-          if (!quantity || !csvSpacecraft || !acquisitionTime) {
-            errors.push(`Row ${i + 1}: Missing Quantity, SCID, or Acquisition Time.`);
-            continue;
-          }
-
-          if (!SPACECRAFT_OPTIONS.includes(csvSpacecraft)) {
-            errors.push(`Row ${i + 1}: Invalid SCID "${csvSpacecraft}".`);
-            continue;
-          }
-
-          const acquisitionDateTime = parseUtcTimeOnDate(acquisitionTime, importTargetDate!);
-          if (!acquisitionDateTime) {
-            errors.push(`Row ${i + 1}: Invalid Acquisition Time "${acquisitionTime}". Must be H:mm, HH:mm, or HH:mm:ss.`);
-            continue;
-          }
-
-          const taskName = `${quantity} Timelines`;
-
-          importedTasks.push({
-            id: crypto.randomUUID(),
-            name: taskName,
-            spacecraft: csvSpacecraft,
-            startTime: acquisitionDateTime.toISOString(),
-            type: "tl",
-            preActionDuration: tlTaskTypeDetails?.preActionDuration ?? 0,
-            postActionDuration: tlTaskTypeDetails?.postActionDuration ?? 0,
-            isCompleted: false,
-          });
-
-          if (needsCadCheck.toLowerCase() === "yes") {
-            const cadCheckStartTime = new Date(acquisitionDateTime.getTime() - 120 * 60000);
-
-            importedTasks.push({
-              id: crypto.randomUUID(),
-              name: taskName,
-              spacecraft: csvSpacecraft,
-              startTime: cadCheckStartTime.toISOString(),
-              type: "rtp",
-              preActionDuration: cadCheckTaskTypeDetails?.preActionDuration ?? 0,
-              postActionDuration: cadCheckTaskTypeDetails?.postActionDuration ?? 0,
-              isCompleted: false,
-            });
-          }
-        }
-
-        if (errors.length > 0) {
-          toast({
-            title: "Import Partially Failed",
-            description: (
-              <div>
-                <p>{importedTasks.length} task(s) imported. {errors.length} row(s) had errors.</p>
-                <ul className="list-disc list-inside max-h-20 overflow-y-auto text-xs">
-                  {errors.slice(0, 5).map((err, idx) => <li key={idx}>{err}</li>)}
-                  {errors.length > 5 && <li>...and {errors.length - 5} more errors.</li>}
-                </ul>
-              </div>
-            ),
-            variant: "destructive",
-            duration: 10000,
-          });
-        } else if (importedTasks.length === 0 && lines.length > 1) {
-          toast({
-            title: "Import Failed",
-            description: "No valid TL monitoring tracker rows found in the CSV file.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (importedTasks.length > 0) {
-          if (importMode === 'replace') {
-            setTasks(importedTasks);
-          } else {
-            setTasks(prevTasks => [...prevTasks, ...importedTasks]);
-          }
-          toast({
-            title: "TL Tracker Import Successful",
-            description: `${importedTasks.length} task(s) imported from the TL monitoring tracker.`,
-            className: "bg-accent text-accent-foreground border-accent"
-          });
-        }
-        setCsvFile(null);
-        const fileInput = document.getElementById('csvImporter') as HTMLInputElement;
-        if (fileInput) fileInput.value = "";
-        return;
-      }
       
       if (colIndices.spacecraft === -1 || colIndices.startTime === -1 || colIndices.type === -1) {
           errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted.");
       }
 
       for (let i = 1; i < lines.length; i++) {
-        const values = parseCsvLine(lines[i]);
+        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
         if (values.length < headerLine.length && errors.length === 0) { 
             errors.push(`Row ${i + 1}: Incorrect number of columns. Expected ${headerLine.length}, got ${values.length}.`);
             continue;
@@ -601,11 +334,18 @@ export default function HomePage() {
             continue;
           }
 
-          const combinedDateTime = parseUtcTimeOnDate(csvTime, importTargetDate!);
-          if (!combinedDateTime) {
-            errors.push(`Row ${i + 1}: Invalid startTime format "${csvTime}". Must be H:mm, HH:mm, or HH:mm:ss.`);
+          const timeParts = csvTime.match(/^(\d{2}):(\d{2})(:(\d{2}))?$/);
+          if (!timeParts) {
+            errors.push(`Row ${i + 1}: Invalid startTime format "${csvTime}". Must be HH:mm or HH:mm:ss.`);
             continue;
           }
+          
+          const hours = parseInt(timeParts[1], 10);
+          const minutes = parseInt(timeParts[2], 10);
+          const seconds = timeParts[4] ? parseInt(timeParts[4], 10) : 0;
+          
+          const combinedDateTime = new Date(importTargetDate!);
+          combinedDateTime.setUTCHours(hours, minutes, seconds, 0);
 
           const isValidTaskType = effectiveTaskTypeOptions.some(option => option.value === csvTaskType);
           if (!isValidTaskType) {
@@ -618,9 +358,7 @@ export default function HomePage() {
 
           let name = colIndices.name !== -1 ? values[colIndices.name] : undefined;
           if (!name || name.trim() === "") {
-            name = csvSpacecraft
-              ? `${taskTypeDetails?.label || csvTaskType} - ${csvSpacecraft}`
-              : `${taskTypeDetails?.label || csvTaskType}`;
+            name = taskTypeDetails ? `${taskTypeDetails.label} - ${csvSpacecraft}` : `${csvTaskType} - ${csvSpacecraft}`;
           }
 
           const preActionDurationStr = colIndices.preActionDuration !== -1 ? values[colIndices.preActionDuration] : undefined;
@@ -794,17 +532,13 @@ export default function HomePage() {
 
         <Card className="border-0">
           <CardHeader>
-            <CardTitle>Import Tasks</CardTitle>
+            <CardTitle>Import Tasks from CSV</CardTitle>
             <CardDescription>
-              Upload a day-agnostic CSV file or paste high priority FSV times. Select a target date, and the times will be applied to that date.
+              Upload a day-agnostic CSV file to import tasks. Select a target date, and the times from the file will be applied to that date.
               <br />
-              Required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (in `H:mm`, `HH:mm`, or `HH:mm:ss` format), <strong>type</strong>.
+              Required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (in `HH:mm` or `HH:mm:ss` format), <strong>type</strong>.
               <br />
               Optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>.
-              <br />
-              TL Monitoring Tracker CSVs are also supported with <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, and <strong>Needs CAD Check</strong> columns.
-              <br />
-              High priority pasted text can contain slash-separated <strong>hhmm</strong> groups; each line group becomes <strong>High Pri x</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -855,19 +589,6 @@ export default function HomePage() {
             <Button onClick={handleImportTasks} disabled={!csvFile || !importTargetDate}>
               <Upload className="mr-2 h-4 w-4" /> Process Import
             </Button>
-            <div className="space-y-2 border-t border-border/60 pt-4">
-              <Label htmlFor="highPriorityPaste">High Pri FSV Paste</Label>
-              <Textarea
-                id="highPriorityPaste"
-                value={highPriorityPasteText}
-                onChange={(event) => setHighPriorityPasteText(event.target.value)}
-                placeholder="0730/0745/0810"
-                className="min-h-[120px] font-mono text-sm"
-              />
-              <Button onClick={handleImportHighPriorityPaste} disabled={!highPriorityPasteText.trim() || !importTargetDate}>
-                <ClipboardPaste className="mr-2 h-4 w-4" /> Process Paste
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </main>

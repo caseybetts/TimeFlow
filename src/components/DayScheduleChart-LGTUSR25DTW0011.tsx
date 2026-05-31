@@ -140,7 +140,7 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
       }
 
       const taskTypeDetails = getTaskTypeDetails(task.type, effectiveTaskTypeOptions);
-      const taskNameDisplay = task.name || (task.spacecraft ? `${taskTypeDetails?.label || task.type} - ${task.spacecraft}` : `${taskTypeDetails?.label || task.type}`);
+      const taskNameDisplay = task.name || `${taskTypeDetails?.label || task.type} - ${task.spacecraft}`;
 
       let laneIndex = laneEndMinutes.findIndex((laneEndMinute) => taskStartMinutesRelativeToDay >= laneEndMinute);
       if (laneIndex === -1) {
@@ -358,9 +358,7 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
                         <TooltipContent className="max-w-xs">
                           <div className="space-y-1 text-sm">
                             <p className="font-semibold">{entry.tooltipLabel}</p>
-                            <p className="text-muted-foreground">
-                              {[task.spacecraft, getTaskTypeDetails(task.type, effectiveTaskTypeOptions)?.label || task.type].filter(Boolean).join(" | ")}
-                            </p>
+                            <p className="text-muted-foreground">{task.spacecraft} | {getTaskTypeDetails(task.type, effectiveTaskTypeOptions)?.label || task.type}</p>
                             <p>Core: {formatTaskTime(task.startTime)}</p>
                             <p>Window: {formatTaskTime(overallStartTimeISO)} - {formatTaskTime(overallEndTimeISO)}</p>
                           </div>
