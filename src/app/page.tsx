@@ -9,7 +9,7 @@ import type { Task, TaskType, Spacecraft } from "@/types";
 import { BLANK_SPACECRAFT, SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2, Calendar as CalendarIcon, ClipboardPaste } from "lucide-react";
+import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2, Calendar as CalendarIcon, ClipboardPaste, UserRound } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
@@ -111,6 +111,8 @@ const parseCompactUtcTimeOnDate = (timeValue: string, targetDate: Date): Date | 
 const HIGH_PRIORITY_TIME_GROUP_PATTERN =
   /(^|[^/\d])((?:[01]\d|2[0-3])[0-5]\d(?:\/(?:[01]\d|2[0-3])[0-5]\d)+)(?=$|[^/\d])/g;
 
+const OWNER_NAME_STORAGE_KEY = "timeflow-owner-name";
+
 const extractHighPriorityTimeGroups = (pastedText: string, targetDate: Date) => {
   const groups: Date[][] = [];
 
@@ -154,7 +156,13 @@ export default function HomePage() {
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
   const [nowRefreshKey, setNowRefreshKey] = useState(0);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
-  const completedTaskCount = tasks.filter((task) => task.isCompleted).length;
+  const [showOnlyMyTasks, setShowOnlyMyTasks] = useState(false);
+  const [ownerName, setOwnerName] = useState("");
+  const normalizedOwnerName = ownerName.trim().toLowerCase();
+  const taskListTasks = showOnlyMyTasks
+    ? tasks.filter((task) => normalizedOwnerName !== "" && (task.owner ?? "").trim().toLowerCase() === normalizedOwnerName)
+    : tasks;
+  const completedTaskCount = taskListTasks.filter((task) => task.isCompleted).length;
 
 
   useEffect(() => {
@@ -185,6 +193,12 @@ export default function HomePage() {
   }, [isMounted]);
 
   useEffect(() => {
+    if (isMounted) {
+      setOwnerName(localStorage.getItem(OWNER_NAME_STORAGE_KEY) ?? "");
+    }
+  }, [isMounted]);
+
+  useEffect(() => {
     const intervalId = setInterval(() => {
       setNowRefreshKey((prevKey) => prevKey + 1);
     }, 60000);
@@ -201,6 +215,16 @@ export default function HomePage() {
       title: `Switched to ${newDarkModeState ? 'Dark' : 'Light'} Mode`,
       variant: "default",
     });
+  };
+
+  const handleOwnerNameChange = (newOwnerName: string) => {
+    const trimmedOwnerName = newOwnerName.trim();
+    setOwnerName(trimmedOwnerName);
+    localStorage.setItem(OWNER_NAME_STORAGE_KEY, trimmedOwnerName);
+  };
+
+  const handleToggleShowOnlyMyTasks = () => {
+    setShowOnlyMyTasks((current) => !current);
   };
 
   const handleAddTask = (task: Task) => {
@@ -302,6 +326,12 @@ export default function HomePage() {
     }
   };
 
+  const handleUpdateOwner = (taskId: string, owner: string) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) => (task.id === taskId ? { ...task, owner } : task))
+    );
+  };
+
   const openEditModal = (task: Task) => {
     setEditingTask(task);
     setIsTaskFormModalOpen(true);
@@ -329,7 +359,7 @@ export default function HomePage() {
 
     const header = [
       "name", "spacecraft", "startTime", 
-      "type", "preActionDuration", "postActionDuration", "isCompleted"
+      "type", "preActionDuration", "postActionDuration", "isCompleted", "Owner"
     ];
     const csvRows = [header.join(',')];
 
@@ -344,7 +374,8 @@ export default function HomePage() {
         escapeCsvField(task.type),
         escapeCsvField(task.preActionDuration),
         escapeCsvField(task.postActionDuration),
-        escapeCsvField(task.isCompleted)
+        escapeCsvField(task.isCompleted),
+        escapeCsvField(task.owner ?? "")
       ];
       csvRows.push(row.join(','));
     });
@@ -356,7 +387,7 @@ export default function HomePage() {
       const url = URL.createObjectURL(blob);
       const today = new Date().toISOString().slice(0, 10);
       link.setAttribute("href", url);
-      link.setAttribute("download", `timeflow_tasks_template_${today}.csv`);
+      link.setAttribute("download", `missionboard_tasks_template_${today}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -459,6 +490,7 @@ export default function HomePage() {
         spacecraft: headerLine.indexOf("scid"),
         acquisitionTime: headerLine.indexOf("acquisitiontime"),
         needsCadCheck: headerLine.indexOf("needscadcheck"),
+        owner: headerLine.indexOf("owner"),
       };
 
       const isTlMonitoringTrackerCsv =
@@ -475,6 +507,7 @@ export default function HomePage() {
         preActionDuration: headerLine.indexOf("preactionduration"),
         postActionDuration: headerLine.indexOf("postactionduration"),
         isCompleted: headerLine.indexOf("iscompleted"),
+        owner: headerLine.indexOf("owner"),
       };
 
       if (isTlMonitoringTrackerCsv) {
@@ -487,6 +520,7 @@ export default function HomePage() {
           const csvSpacecraft = getCsvValue(values, tlTrackerColIndices.spacecraft) as Spacecraft;
           const acquisitionTime = getCsvValue(values, tlTrackerColIndices.acquisitionTime);
           const needsCadCheck = getCsvValue(values, tlTrackerColIndices.needsCadCheck);
+          const owner = getCsvValue(values, tlTrackerColIndices.owner);
 
           if (!quantity && !csvSpacecraft && !acquisitionTime && !needsCadCheck) {
             continue;
@@ -519,6 +553,7 @@ export default function HomePage() {
             preActionDuration: tlTaskTypeDetails?.preActionDuration ?? 0,
             postActionDuration: tlTaskTypeDetails?.postActionDuration ?? 0,
             isCompleted: false,
+            owner,
           });
 
           if (needsCadCheck.toLowerCase() === "yes") {
@@ -533,6 +568,7 @@ export default function HomePage() {
               preActionDuration: cadCheckTaskTypeDetails?.preActionDuration ?? 0,
               postActionDuration: cadCheckTaskTypeDetails?.postActionDuration ?? 0,
               isCompleted: false,
+              owner,
             });
           }
         }
@@ -580,7 +616,7 @@ export default function HomePage() {
       }
       
       if (colIndices.spacecraft === -1 || colIndices.startTime === -1 || colIndices.type === -1) {
-          errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted.");
+          errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted, Owner.");
       }
 
       for (let i = 1; i < lines.length; i++) {
@@ -631,6 +667,7 @@ export default function HomePage() {
           
           const isCompletedStr = colIndices.isCompleted !== -1 ? values[colIndices.isCompleted]?.toLowerCase() : "false";
           const isCompleted = isCompletedStr === "true";
+          const owner = colIndices.owner !== -1 ? values[colIndices.owner]?.trim() : "";
 
 
           importedTasks.push({
@@ -642,6 +679,7 @@ export default function HomePage() {
             preActionDuration: Math.max(0, preActionDuration),
             postActionDuration: Math.max(0, postActionDuration),
             isCompleted,
+            owner,
           });
         } catch (e: any) {
           errors.push(`Row ${i + 1}: Error processing row - ${e.message}`);
@@ -711,10 +749,10 @@ export default function HomePage() {
   }
 
   return (
-    <div className="timeflow-page-shell min-h-screen flex flex-col p-4 md:p-8 transition-colors duration-300">
+    <div className="missionboard-page-shell min-h-screen flex flex-col p-4 md:p-8 transition-colors duration-300">
       <header className="relative z-10 mb-6 flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-4xl font-headline font-bold text-primary">
-          TimeFlow
+          MissionBoard
         </h1>
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <div className="flex items-center gap-1 rounded-md bg-card/70 p-1 shadow-sm backdrop-blur-sm">
@@ -722,7 +760,7 @@ export default function HomePage() {
               variant="ghost"
               size="icon"
               onClick={() => setIsSettingsModalOpen(true)}
-              aria-label="Configure Task Types"
+              aria-label="Open settings"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
@@ -744,7 +782,7 @@ export default function HomePage() {
             <Button onClick={handleOpenDeleteAllConfirmation} variant="outline" disabled={tasks.length === 0} className="h-9 border-destructive/30 bg-destructive/10 px-3 text-destructive hover:bg-destructive hover:text-destructive-foreground">
               <Trash2 className="mr-2 h-4 w-4" /> Clear
             </Button>
-            <Button onClick={openAddModal} className="h-9 bg-primary px-3 hover:bg-primary/90 text-primary-foreground">
+            <Button onClick={openAddModal} className="h-9 bg-[color-mix(in_srgb,hsl(var(--primary))_84%,black_16%)] px-3 text-primary-foreground hover:bg-[color-mix(in_srgb,hsl(var(--primary))_76%,black_24%)]">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Task
             </Button>
           </div>
@@ -766,25 +804,42 @@ export default function HomePage() {
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-headline font-semibold text-foreground">Task List</h2>
               <span className="rounded-md border bg-card px-2.5 py-1 text-sm font-medium text-muted-foreground">
-                {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+                {showOnlyMyTasks
+                  ? `${taskListTasks.length} of ${tasks.length} tasks`
+                  : `${taskListTasks.length} ${taskListTasks.length === 1 ? "task" : "tasks"}`}
               </span>
             </div>
-            {completedTaskCount > 0 && (
+            <div className="flex items-center justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowCompletedTasks((current) => !current)}
-                className="h-8 border-border/60 bg-card/95 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-card"
+                onClick={handleToggleShowOnlyMyTasks}
+                className={cn(
+                  "h-8 border-border/60 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-card",
+                  showOnlyMyTasks ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "bg-card/95"
+                )}
               >
-                {showCompletedTasks ? "Hide" : "Show"} {completedTaskCount} Completed {completedTaskCount === 1 ? "Task" : "Tasks"}
+                <UserRound className="mr-2 h-3.5 w-3.5" />
+                My Tasks
               </Button>
-            )}
+              {completedTaskCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCompletedTasks((current) => !current)}
+                  className="h-8 border-border/60 bg-card/95 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-card"
+                >
+                  {showCompletedTasks ? "Hide" : "Show"} {completedTaskCount} Completed {completedTaskCount === 1 ? "Task" : "Tasks"}
+                </Button>
+              )}
+            </div>
           </div>
           <Timeline
-            tasks={tasks}
+            tasks={taskListTasks}
             onEditTask={openEditModal}
             onDeleteTask={handleDeleteTask}
             onToggleComplete={handleToggleComplete}
+            onUpdateOwner={handleUpdateOwner}
             refreshKey={nowRefreshKey}
             showCompletedTasks={showCompletedTasks}
           />
@@ -800,7 +855,7 @@ export default function HomePage() {
               <br />
               Required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (in `H:mm`, `HH:mm`, or `HH:mm:ss` format), <strong>type</strong>.
               <br />
-              Optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>.
+              Optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>, <strong>Owner</strong>.
               <br />
               TL Monitoring Tracker CSVs are also supported with <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, and <strong>Needs CAD Check</strong> columns.
               <br />
@@ -882,6 +937,8 @@ export default function HomePage() {
       <TaskTypeSettingsModal
         isOpen={isSettingsModalOpen}
         onOpenChange={setIsSettingsModalOpen}
+        ownerName={ownerName}
+        onOwnerNameChange={handleOwnerNameChange}
       />
 
       <AlertDialog open={isDeleteAllConfirmOpen} onOpenChange={setIsDeleteAllConfirmOpen}>
@@ -908,7 +965,7 @@ export default function HomePage() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <p className="inline-block cursor-default">&copy; {new Date().getFullYear()} TimeFlow. Stay organized, effortlessly.</p>
+              <p className="inline-block cursor-default">&copy; {new Date().getFullYear()} MissionBoard. Stay mission-ready.</p>
             </TooltipTrigger>
             <TooltipContent>
               <p>Created by Casey Betts with the help of AI</p>

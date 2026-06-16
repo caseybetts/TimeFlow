@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import type { SpreadsheetTaskRow, Task, TaskType, Spacecraft } from "@/types";
-import { SELECTABLE_SPACECRAFT_OPTIONS } from "@/types";
+import { BLANK_SPACECRAFT, SELECTABLE_SPACECRAFT_OPTIONS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,6 +41,14 @@ const getUtcTimeLocalString = (date: Date): string => {
   const minutes = String(date.getUTCMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
 };
+
+const BLANK_SPACECRAFT_SELECT_VALUE = "__blank_spacecraft__";
+
+const toSpacecraftSelectValue = (spacecraft: Spacecraft) =>
+  spacecraft === BLANK_SPACECRAFT ? BLANK_SPACECRAFT_SELECT_VALUE : spacecraft;
+
+const fromSpacecraftSelectValue = (value: string): Spacecraft =>
+  value === BLANK_SPACECRAFT_SELECT_VALUE ? BLANK_SPACECRAFT : (value as Spacecraft);
 
 export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputProps) {
   const [rows, setRows] = useState<SpreadsheetTaskRow[]>([]);
@@ -256,15 +264,18 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
                 </TableCell>
                 <TableCell>
                   <Select
-                    value={row.spacecraft}
+                    value={toSpacecraftSelectValue(row.spacecraft)}
                     onValueChange={(value) =>
-                      handleInputChange(row.tempId, "spacecraft", value as Spacecraft)
+                      handleInputChange(row.tempId, "spacecraft", fromSpacecraftSelectValue(value))
                     }
                   >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Select spacecraft" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={BLANK_SPACECRAFT_SELECT_VALUE}>
+                        <span className="text-muted-foreground">Blank</span>
+                      </SelectItem>
                       {SELECTABLE_SPACECRAFT_OPTIONS.map((option) => (
                         <SelectItem key={option} value={option}>
                           {option}
@@ -358,7 +369,7 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
         </div>
       )}
       <div className="flex justify-start space-x-2">
-        <Button onClick={handleAddRow} variant="outline">
+        <Button onClick={handleAddRow} className="h-9 bg-[color-mix(in_srgb,hsl(var(--primary))_84%,black_16%)] px-3 text-primary-foreground hover:bg-[color-mix(in_srgb,hsl(var(--primary))_76%,black_24%)]">
           <PlusCircle className="mr-2 h-4 w-4" /> Add Row
         </Button>
         {rows.length > 0 && (

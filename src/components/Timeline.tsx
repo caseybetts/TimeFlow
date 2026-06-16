@@ -2,8 +2,9 @@
 "use client";
 
 import type { Task } from "@/types";
-import { TaskItem } from "./TaskItem";
+import { TASK_LIST_GRID_COLUMNS, TaskItem } from "./TaskItem";
 import { Orbit, Radar } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const COUNTDOWN_UPDATE_STAGGER_MS = 250;
 
@@ -12,6 +13,7 @@ interface TimelineProps {
   onEditTask: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleComplete: (taskId: string) => void;
+  onUpdateOwner: (taskId: string, owner: string) => void;
   refreshKey: number;
   showCompletedTasks: boolean;
 }
@@ -21,6 +23,7 @@ export function Timeline({
   onEditTask,
   onDeleteTask,
   onToggleComplete,
+  onUpdateOwner,
   refreshKey,
   showCompletedTasks,
 }: TimelineProps) {
@@ -73,6 +76,20 @@ export function Timeline({
       <div className="relative rounded-md border-0 bg-card/95 p-1 shadow-inner backdrop-blur-sm sm:p-4">
         {visibleTasks.length > 0 ? (
           <div className="space-y-1 sm:space-y-0">
+            <div
+              className={cn(
+                "grid items-center gap-2 px-2 pb-2 pt-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/65 sm:gap-3 sm:px-3",
+                TASK_LIST_GRID_COLUMNS
+              )}
+            >
+              <span className="col-span-2">Actions</span>
+              <span>Time</span>
+              <span>SCID</span>
+              <span>Task</span>
+              <span className="text-center">Countdown</span>
+              <span>Owner</span>
+              <span className="text-center">Done</span>
+            </div>
             {visibleTasks.map((task, index) => (
               <TaskItem
                 key={task.id}
@@ -80,6 +97,7 @@ export function Timeline({
                 onEdit={onEditTask}
                 onDelete={onDeleteTask}
                 onToggleComplete={onToggleComplete}
+                onUpdateOwner={onUpdateOwner}
                 refreshKey={refreshKey}
                 countdownUpdateDelayMs={index * COUNTDOWN_UPDATE_STAGGER_MS}
                 isNextUpcoming={task.id === nextUpcomingTask?.id}

@@ -22,6 +22,7 @@ export interface Task {
   preActionDuration: number; // in minutes
   postActionDuration: number; // in minutes
   isCompleted?: boolean;
+  owner?: string;
 }
 
 // Represents the full definition of a task type, including non-configurable parts

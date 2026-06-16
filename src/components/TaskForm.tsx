@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Task, TaskType, Spacecraft } from "@/types";
-import { TASK_TYPES, SPACECRAFT_OPTIONS, SELECTABLE_SPACECRAFT_OPTIONS } from "@/types";
+import { BLANK_SPACECRAFT, TASK_TYPES, SPACECRAFT_OPTIONS, SELECTABLE_SPACECRAFT_OPTIONS } from "@/types";
 import { getTaskTypeDetails } from "@/lib/task-utils";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { PlusCircle, Edit3 } from "lucide-react";
@@ -38,6 +38,7 @@ import { useEffect } from "react";
 
 const taskFormSchema = z.object({
   name: z.string().optional(),
+  owner: z.string().optional(),
   spacecraft: z.enum(SPACECRAFT_OPTIONS, {
     required_error: "Spacecraft selection is required.",
   }),
@@ -52,6 +53,14 @@ const taskFormSchema = z.object({
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
+
+const BLANK_SPACECRAFT_SELECT_VALUE = "__blank_spacecraft__";
+
+const toSpacecraftSelectValue = (spacecraft: Spacecraft) =>
+  spacecraft === BLANK_SPACECRAFT ? BLANK_SPACECRAFT_SELECT_VALUE : spacecraft;
+
+const fromSpacecraftSelectValue = (value: string): Spacecraft =>
+  value === BLANK_SPACECRAFT_SELECT_VALUE ? BLANK_SPACECRAFT : (value as Spacecraft);
 
 interface TaskFormProps {
   isOpen: boolean;
@@ -83,6 +92,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
     defaultValues: initialTask
       ? {
           name: initialTask.name || "",
+          owner: initialTask.owner || "",
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           type: initialTask.type,
@@ -91,6 +101,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
         }
       : {
           name: "",
+          owner: "",
           spacecraft: defaultSpacecraft,
           startTime: defaultInitialUtcTimeForInput,
           type: defaultTaskType,
@@ -108,6 +119,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       if (initialTask) {
         form.reset({
           name: initialTask.name || "",
+          owner: initialTask.owner || "",
           spacecraft: initialTask.spacecraft,
           startTime: getUtcDateTimeLocalString(new Date(initialTask.startTime)),
           type: initialTask.type,
@@ -117,6 +129,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       } else {
         form.reset({
           name: "",
+          owner: "",
           spacecraft: defaultSpacecraft,
           startTime: getUtcDateTimeLocalString(new Date()),
           type: defaultTypeForNew,
@@ -158,6 +171,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       preActionDuration: values.preActionDuration,
       postActionDuration: values.postActionDuration,
       isCompleted: initialTask?.isCompleted || false,
+      owner: values.owner?.trim() || "",
     };
     onSubmit(task);
     onOpenChange(false);
@@ -188,17 +202,36 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
             />
             <FormField
               control={form.control}
+              name="owner"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Owner (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="E.g., Casey" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="spacecraft"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Spacecraft</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select
+                    value={toSpacecraftSelectValue(field.value)}
+                    onValueChange={(value) => field.onChange(fromSpacecraftSelectValue(value))}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a spacecraft" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value={BLANK_SPACECRAFT_SELECT_VALUE}>
+                        <span className="text-muted-foreground">Blank</span>
+                      </SelectItem>
                       {SELECTABLE_SPACECRAFT_OPTIONS.map((option) => (
                         <SelectItem key={option} value={option}>
                           {option}

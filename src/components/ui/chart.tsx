@@ -187,6 +187,8 @@ const ChartTooltipContent = React.forwardRef<
       return null
     }
 
+    const customContent = content as unknown
+
     // If custom content is provided, render it
     if (content) {
       return (
@@ -199,7 +201,9 @@ const ChartTooltipContent = React.forwardRef<
           {...props} // Spread props here for the main div
         >
           {tooltipLabel}
-          {typeof content === 'function' ? content({payload, config}) : content}
+          {typeof customContent === "function"
+            ? (customContent as (props: { payload: typeof payload; config: ChartConfig }) => React.ReactNode)({ payload, config })
+            : (customContent as React.ReactNode)}
         </div>
       );
     }
@@ -221,6 +225,7 @@ const ChartTooltipContent = React.forwardRef<
           {payload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
+            const ItemIcon = itemConfig?.icon
             const indicatorColor = color || item.payload.fill || item.color
 
             return (
@@ -235,8 +240,8 @@ const ChartTooltipContent = React.forwardRef<
                   formatter(item.value, item.name, item, index, item.payload)
                 ) : (
                   <>
-                    {itemConfig?.icon ? (
-                      <itemConfig.icon />
+                    {ItemIcon ? (
+                      <ItemIcon />
                     ) : (
                       !hideIndicator && (
                         <div
@@ -321,28 +326,32 @@ const ChartLegendContent = React.forwardRef<
             className
           )}
         >
-          {configEntries.map(([key, itemConfig]) => (
-            <div
-              key={key}
-              className={cn(
-                "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
-              )}
-            >
-              {!hideIcon && (
-                itemConfig.icon ? (
-                  <itemConfig.icon />
-                ) : (
-                  <div
-                    className="h-2 w-2 shrink-0 rounded-[2px]"
-                    style={{
-                      backgroundColor: `var(--color-${key})`,
-                    }}
-                  />
-                )
-              )}
-              {itemConfig.label}
-            </div>
-          ))}
+          {configEntries.map(([key, itemConfig]) => {
+            const ConfigIcon = itemConfig.icon
+
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
+                )}
+              >
+                {!hideIcon && (
+                  ConfigIcon ? (
+                    <ConfigIcon />
+                  ) : (
+                    <div
+                      className="h-2 w-2 shrink-0 rounded-[2px]"
+                      style={{
+                        backgroundColor: `var(--color-${key})`,
+                      }}
+                    />
+                  )
+                )}
+                {itemConfig.label}
+              </div>
+            )
+          })}
         </div>
       )
     }
@@ -360,6 +369,7 @@ const ChartLegendContent = React.forwardRef<
         {payload.map((item) => {
           const key = `${nameKey || item.dataKey || "value"}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
+          const ItemIcon = itemConfig?.icon
 
           return (
             <div
@@ -368,8 +378,8 @@ const ChartLegendContent = React.forwardRef<
                 "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
               )}
             >
-              {itemConfig?.icon && !hideIcon ? (
-                <itemConfig.icon />
+              {ItemIcon && !hideIcon ? (
+                <ItemIcon />
               ) : (
                 <div
                   className="h-2 w-2 shrink-0 rounded-[2px]"

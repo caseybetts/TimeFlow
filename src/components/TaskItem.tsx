@@ -6,6 +6,7 @@ import type { Task } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Edit3, Trash2, Clock, AlertTriangle } from "lucide-react"; 
 import {
@@ -21,10 +22,14 @@ interface TaskItemProps {
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => void;
   onToggleComplete: (taskId: string) => void;
+  onUpdateOwner: (taskId: string, owner: string) => void;
   refreshKey: number;
   countdownUpdateDelayMs?: number;
   isNextUpcoming?: boolean;
 }
+
+export const TASK_LIST_GRID_COLUMNS =
+  "grid-cols-[auto_auto_7.25rem_4.75rem_minmax(9rem,0.7fr)_minmax(17rem,1.3fr)_minmax(8rem,0.45fr)_2.5rem]";
 
 const getTaskTypeChartColor = (taskType: Task["type"]): string => {
   switch (taskType) {
@@ -46,6 +51,7 @@ export function TaskItem({
   onEdit,
   onDelete,
   onToggleComplete,
+  onUpdateOwner,
   refreshKey,
   countdownUpdateDelayMs = 0,
   isNextUpcoming = false,
@@ -107,9 +113,7 @@ export function TaskItem({
       <CardContent className="p-2 sm:p-3">
         <div className={cn(
           "grid items-center gap-2 sm:gap-3",
-          usesEmphasizedText
-            ? "grid-cols-[auto_auto_7.25rem_4.75rem_minmax(9rem,0.7fr)_minmax(17rem,1.3fr)_2.5rem]"
-            : "grid-cols-[auto_auto_5.75rem_4.25rem_minmax(8rem,0.7fr)_minmax(16rem,1.3fr)_2.5rem]"
+          TASK_LIST_GRID_COLUMNS
         )}>
           <TooltipProvider>
             <Tooltip>
@@ -191,6 +195,17 @@ export function TaskItem({
               {remainingDisplay}
             </span>
           </div>
+
+          <Input
+            value={task.owner ?? ""}
+            onChange={(event) => onUpdateOwner(task.id, event.target.value)}
+            aria-label={`Owner for ${taskNameDisplay}`}
+            placeholder="No Owner"
+            className={cn(
+              "h-8 min-w-0 border-border/60 bg-background/45 px-2 text-xs placeholder:text-muted-foreground/45",
+              task.owner ? "text-foreground" : "text-muted-foreground/60"
+            )}
+          />
 
           <TooltipProvider>
             <Tooltip>

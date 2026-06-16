@@ -109,7 +109,7 @@ body {
 }
 
 @layer components {
-  .timeflow-page-shell {
+  .missionboard-page-shell {
     position: relative;
     isolation: isolate;
     overflow-x: clip;
@@ -120,8 +120,8 @@ body {
     background-size: auto, 112px 112px, 168px 168px;
   }
 
-  .timeflow-page-shell::before,
-  .timeflow-page-shell::after {
+  .missionboard-page-shell::before,
+  .missionboard-page-shell::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -129,7 +129,7 @@ body {
     z-index: 0;
   }
 
-  .timeflow-page-shell::before {
+  .missionboard-page-shell::before {
     background-image:
       linear-gradient(to right, hsl(220 8% 20% / 0.06) 1px, transparent 1px),
       linear-gradient(to bottom, hsl(220 8% 20% / 0.04) 1px, transparent 1px),
@@ -139,14 +139,14 @@ body {
     background-size: 64px 64px, 64px 64px, 16px 16px, 16px 16px;
   }
 
-  .timeflow-page-shell::after {
+  .missionboard-page-shell::after {
     width: 28%;
     background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.16), transparent);
     transform: skewX(-18deg) translateX(-140%);
-    animation: timeflow-orbit-scan 44s linear infinite;
+    animation: missionboard-orbit-scan 44s linear infinite;
   }
 
-  .dark .timeflow-page-shell {
+  .dark .missionboard-page-shell {
     background:
       linear-gradient(135deg, hsl(220 10% 9%) 0%, hsl(220 9% 14%) 46%, hsl(220 8% 10%) 100%),
       radial-gradient(circle at 18px 24px, hsl(0 0% 100% / 0.055) 0 1px, transparent 1.5px),
@@ -154,7 +154,7 @@ body {
     background-size: auto, 112px 112px, 168px 168px;
   }
 
-  .dark .timeflow-page-shell::before {
+  .dark .missionboard-page-shell::before {
     background-image:
       linear-gradient(to right, hsl(0 0% 100% / 0.04) 1px, transparent 1px),
       linear-gradient(to bottom, hsl(0 0% 100% / 0.03) 1px, transparent 1px),
@@ -164,11 +164,11 @@ body {
     background-size: 64px 64px, 64px 64px, 16px 16px, 16px 16px;
   }
 
-  .dark .timeflow-page-shell::after {
+  .dark .missionboard-page-shell::after {
     background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.055), transparent);
   }
 
-  @keyframes timeflow-orbit-scan {
+  @keyframes missionboard-orbit-scan {
     from {
       transform: skewX(-18deg) translateX(-140%);
     }
@@ -178,7 +178,7 @@ body {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .timeflow-page-shell::after {
+    .missionboard-page-shell::after {
       animation: none;
       opacity: 0;
     }

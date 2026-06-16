@@ -26,7 +26,7 @@ if (!fs.existsSync(distDir)) {
 }
 
 // Create a README for the distribution
-const readmeContent = `# TimeFlow
+const readmeContent = `# MissionBoard
 
 ## Installation Instructions
 
@@ -52,7 +52,7 @@ fs.writeFileSync(path.join(distDir, 'README.md'), readmeContent);
 
 // Create a minimal package.json for production
 const packageJson = {
-    name: "timeflow",
+    name: "missionboard",
     version: "1.0.0",
     private: true,
     scripts: {
@@ -83,7 +83,7 @@ app.get('*', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(\`TimeFlow is running at http://localhost:\${port}\`);
+    console.log(\`MissionBoard is running at http://localhost:\${port}\`);
 });`;
 
 fs.writeFileSync(path.join(distDir, 'server.js'), serverContent);
@@ -96,4 +96,4 @@ if (fs.existsSync(outDir)) {
     copyDir(outDir, outDistDir);
 }
 
-console.log('Package created successfully in the dist directory!'); 
+console.log('Package created successfully in the dist directory!');

@@ -24,11 +24,14 @@ import { useToast } from "@/hooks/use-toast";
 interface TaskTypeSettingsModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  ownerName: string;
+  onOwnerNameChange: (ownerName: string) => void;
 }
 
-export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettingsModalProps) {
+export function TaskTypeSettingsModal({ isOpen, onOpenChange, ownerName, onOwnerNameChange }: TaskTypeSettingsModalProps) {
   const { userConfig, updateUserConfig, resetTaskTypeConfig } = useTaskTypeConfig();
   const [localTaskTypeConfig, setLocalTaskTypeConfig] = useState<UserTaskTypesConfig>({});
+  const [localOwnerName, setLocalOwnerName] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,8 +48,9 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
         };
       });
       setLocalTaskTypeConfig(fullLocalConfig);
+      setLocalOwnerName(ownerName);
     }
-  }, [isOpen, userConfig]);
+  }, [isOpen, userConfig, ownerName]);
 
 
   const handleTaskTypeInputChange = (
@@ -55,7 +59,12 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
     value: string | number
   ) => {
     setLocalTaskTypeConfig(prev => {
-      const existingTypeSettings = prev[taskValue] || {};
+      const defaultSettings = DEFAULT_TASK_TYPE_OPTIONS.find(option => option.value === taskValue);
+      const existingTypeSettings: UserEditableTaskTypeFields = prev[taskValue] || {
+        label: defaultSettings?.label ?? taskValue,
+        preActionDuration: defaultSettings?.preActionDuration ?? 0,
+        postActionDuration: defaultSettings?.postActionDuration ?? 0,
+      };
       const newSettings: UserEditableTaskTypeFields = {
         ...existingTypeSettings, // preserve other fields like label
         label: existingTypeSettings.label, // ensure label is preserved or set from default
@@ -74,7 +83,7 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
   };
 
 
-  const handleTaskTypeSaveChanges = () => {
+  const handleSaveSettings = () => {
     // Filter out any entries that are identical to defaults to keep storage minimal
     const configToSave: UserTaskTypesConfig = {};
     for (const taskVal in localTaskTypeConfig) {
@@ -90,9 +99,10 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
         }
     }
     updateUserConfig(configToSave);
+    onOwnerNameChange(localOwnerName.trim());
     toast({
-      title: "Task Type Settings Saved",
-      description: "Task type configurations have been updated.",
+      title: "Settings Saved",
+      description: "Your app settings have been updated.",
     });
   };
 
@@ -121,12 +131,24 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg md:max-w-2xl bg-card">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl">Task Type Settings</DialogTitle>
+            <DialogTitle className="font-headline text-2xl">Settings</DialogTitle>
             <DialogDescription>
-              Customize labels and pre/post action durations for task types.
+              Customize your task ownership and task type defaults.
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] p-1 pr-4">
+            <div className="mb-8 rounded-md border bg-background p-4 shadow-sm">
+              <h3 className="mb-3 text-xl font-semibold text-foreground">Personal Settings</h3>
+              <div className="space-y-1">
+                <Label htmlFor="owner-name">Your Name</Label>
+                <Input
+                  id="owner-name"
+                  value={localOwnerName}
+                  onChange={(event) => setLocalOwnerName(event.target.value)}
+                  placeholder="E.g., Casey"
+                />
+              </div>
+            </div>
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-foreground mb-3">Task Type Configuration</h3>
               <div className="space-y-6">
@@ -191,8 +213,8 @@ export function TaskTypeSettingsModal({ isOpen, onOpenChange }: TaskTypeSettings
                   );
                 })}
               </div>
-               <Button onClick={handleTaskTypeSaveChanges} className="mt-4">
-                <Save className="mr-2 h-4 w-4" /> Save Task Type Changes
+               <Button onClick={handleSaveSettings} className="mt-4">
+                <Save className="mr-2 h-4 w-4" /> Save Settings
               </Button>
             </div>
           </ScrollArea>

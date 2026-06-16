@@ -1,4 +1,4 @@
-# TimeFlow
+# MissionBoard
 
 ## To Set Up
 1. Make sure you have Node.js installed (this is in the software center)
