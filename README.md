@@ -48,9 +48,13 @@ Use **Import Tasks** to apply a CSV schedule to a target date. Choose **Replace 
 
 Generic CSV imports support `spacecraft`, `startTime`, and `type`, with optional `name`, `preActionDuration`, `postActionDuration`, `isCompleted`, and `Owner` columns.
 
+CSV time fields accept colon or compact UTC forms, such as `7:30`, `07:30`, `07:30:00`, `730`, `0730`, and `073000`.
+
 ### TL Monitoring Tracker Import
 
 TL Monitoring Tracker CSV files can be imported directly when they include `Quantity`, `SCID`, `Acquisition Time`, and `Needs CAD Check`. MissionBoard creates TL tasks and, when needed, CAD Check tasks from those rows.
+
+When numbered FSV columns are present, such as `FSV 1`, `FSV 2`, and `FSV 3`, each populated time cell creates an FSV task on the selected target date. FSV task names combine the row quantity, SCID, and FSV number, for example `4 WV01 FSV 1`.
 
 Review the imported task list after processing so any partial import errors can be corrected before the schedule is used operationally.
 

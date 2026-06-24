@@ -68,15 +68,63 @@ const parseCsvLine = (line: string): string[] => {
 const getCsvValue = (values: string[], columnIndex: number) =>
   columnIndex >= 0 ? values[columnIndex]?.trim() ?? "" : "";
 
+const getFsvColumnNumberFromHeader = (normalizedHeader: string): 1 | 2 | 3 | null => {
+  const compactHeader = normalizedHeader.replace(/[^a-z0-9]/g, "");
+  const match =
+    compactHeader.match(/^fsv(?:time)?([123])$/) ??
+    compactHeader.match(/^fsv([123])(?:time|datetime|utctime|gmttime|utc|gmt)?$/) ??
+    compactHeader.match(/^([123])fsv(?:time|datetime|utctime|gmttime|utc|gmt)?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const fsvNumber = Number(match[1]);
+  return fsvNumber === 1 || fsvNumber === 2 || fsvNumber === 3 ? fsvNumber : null;
+};
+
+const getTlTrackerFsvColumns = (headers: string[]) =>
+  headers.flatMap((header, index) => {
+    const fsvNumber = getFsvColumnNumberFromHeader(header);
+    return fsvNumber ? [{ index, fsvNumber }] : [];
+  });
+
+const isEmptyTrackerCell = (value: string) => {
+  const normalizedValue = value.trim().toLowerCase();
+  return ["", "-", "--", "n/a", "na", "none"].includes(normalizedValue);
+};
+
+const CSV_TIME_FORMAT_DESCRIPTION = "H:mm, HH:mm, HH:mm:ss, Hmm, HHmm, Hmmss, or HHmmss";
+
 const parseUtcTimeOnDate = (timeValue: string, targetDate: Date): Date | null => {
-  const timeParts = timeValue.trim().match(/^(\d{1,2}):(\d{2})(:(\d{2}))?$/);
+  const trimmedTimeValue = timeValue.trim();
+  const colonTimeParts = trimmedTimeValue.match(/^(\d{1,2}):(\d{2})(:(\d{2}))?$/);
+  const compactTimeParts = trimmedTimeValue.match(/^(\d{3,6})$/);
+  let timeParts: { hours: string; minutes: string; seconds: string } | null = null;
+
+  if (colonTimeParts) {
+    timeParts = {
+      hours: colonTimeParts[1],
+      minutes: colonTimeParts[2],
+      seconds: colonTimeParts[4] ?? "0",
+    };
+  } else if (compactTimeParts) {
+    const compactTime = compactTimeParts[1];
+    const includesSeconds = compactTime.length > 4;
+    timeParts = {
+      hours: compactTime.slice(0, includesSeconds ? -4 : -2),
+      minutes: compactTime.slice(includesSeconds ? -4 : -2, includesSeconds ? -2 : undefined),
+      seconds: includesSeconds ? compactTime.slice(-2) : "0",
+    };
+  }
+
   if (!timeParts) {
     return null;
   }
 
-  const hours = Number(timeParts[1]);
-  const minutes = Number(timeParts[2]);
-  const seconds = timeParts[4] ? Number(timeParts[4]) : 0;
+  const hours = Number(timeParts.hours);
+  const minutes = Number(timeParts.minutes);
+  const seconds = Number(timeParts.seconds);
 
   if (
     !Number.isInteger(hours) ||
@@ -492,6 +540,7 @@ export default function HomePage() {
         needsCadCheck: headerLine.indexOf("needscadcheck"),
         owner: headerLine.indexOf("owner"),
       };
+      const tlTrackerFsvColumns = getTlTrackerFsvColumns(headerLine);
 
       const isTlMonitoringTrackerCsv =
         tlTrackerColIndices.quantity !== -1 &&
@@ -513,6 +562,7 @@ export default function HomePage() {
       if (isTlMonitoringTrackerCsv) {
         const tlTaskTypeDetails = getTaskTypeDetails("tl", effectiveTaskTypeOptions);
         const cadCheckTaskTypeDetails = getTaskTypeDetails("rtp", effectiveTaskTypeOptions);
+        const fsvTaskTypeDetails = getTaskTypeDetails("fsv", effectiveTaskTypeOptions);
 
         for (let i = 1; i < lines.length; i++) {
           const values = parseCsvLine(lines[i]);
@@ -521,13 +571,18 @@ export default function HomePage() {
           const acquisitionTime = getCsvValue(values, tlTrackerColIndices.acquisitionTime);
           const needsCadCheck = getCsvValue(values, tlTrackerColIndices.needsCadCheck);
           const owner = getCsvValue(values, tlTrackerColIndices.owner);
+          const fsvValues = tlTrackerFsvColumns.map((column) => ({
+            ...column,
+            time: getCsvValue(values, column.index),
+          }));
+          const hasFsvData = fsvValues.some(({ time }) => !isEmptyTrackerCell(time));
 
-          if (!quantity && !csvSpacecraft && !acquisitionTime && !needsCadCheck) {
+          if (!quantity && !csvSpacecraft && !acquisitionTime && !needsCadCheck && !hasFsvData) {
             continue;
           }
 
-          if (!quantity || !csvSpacecraft || !acquisitionTime) {
-            errors.push(`Row ${i + 1}: Missing Quantity, SCID, or Acquisition Time.`);
+          if (!quantity || !csvSpacecraft) {
+            errors.push(`Row ${i + 1}: Missing Quantity or SCID.`);
             continue;
           }
 
@@ -536,41 +591,66 @@ export default function HomePage() {
             continue;
           }
 
-          const acquisitionDateTime = parseUtcTimeOnDate(acquisitionTime, importTargetDate!);
-          if (!acquisitionDateTime) {
-            errors.push(`Row ${i + 1}: Invalid Acquisition Time "${acquisitionTime}". Must be H:mm, HH:mm, or HH:mm:ss.`);
-            continue;
-          }
-
           const taskName = `${quantity} Timelines`;
+          const acquisitionDateTime = parseUtcTimeOnDate(acquisitionTime, importTargetDate!);
 
-          importedTasks.push({
-            id: crypto.randomUUID(),
-            name: taskName,
-            spacecraft: csvSpacecraft,
-            startTime: acquisitionDateTime.toISOString(),
-            type: "tl",
-            preActionDuration: tlTaskTypeDetails?.preActionDuration ?? 0,
-            postActionDuration: tlTaskTypeDetails?.postActionDuration ?? 0,
-            isCompleted: false,
-            owner,
-          });
-
-          if (needsCadCheck.toLowerCase() === "yes") {
-            const cadCheckStartTime = new Date(acquisitionDateTime.getTime() - 120 * 60000);
-
+          if (!acquisitionTime) {
+            errors.push(`Row ${i + 1}: Missing Acquisition Time.`);
+          } else if (!acquisitionDateTime) {
+            errors.push(`Row ${i + 1}: Invalid Acquisition Time "${acquisitionTime}". Must be ${CSV_TIME_FORMAT_DESCRIPTION}.`);
+          } else {
             importedTasks.push({
               id: crypto.randomUUID(),
               name: taskName,
               spacecraft: csvSpacecraft,
-              startTime: cadCheckStartTime.toISOString(),
-              type: "rtp",
-              preActionDuration: cadCheckTaskTypeDetails?.preActionDuration ?? 0,
-              postActionDuration: cadCheckTaskTypeDetails?.postActionDuration ?? 0,
+              startTime: acquisitionDateTime.toISOString(),
+              type: "tl",
+              preActionDuration: tlTaskTypeDetails?.preActionDuration ?? 0,
+              postActionDuration: tlTaskTypeDetails?.postActionDuration ?? 0,
               isCompleted: false,
               owner,
             });
+
+            if (needsCadCheck.toLowerCase() === "yes") {
+              const cadCheckStartTime = new Date(acquisitionDateTime.getTime() - 120 * 60000);
+
+              importedTasks.push({
+                id: crypto.randomUUID(),
+                name: taskName,
+                spacecraft: csvSpacecraft,
+                startTime: cadCheckStartTime.toISOString(),
+                type: "rtp",
+                preActionDuration: cadCheckTaskTypeDetails?.preActionDuration ?? 0,
+                postActionDuration: cadCheckTaskTypeDetails?.postActionDuration ?? 0,
+                isCompleted: false,
+                owner,
+              });
+            }
           }
+
+          fsvValues.forEach(({ fsvNumber, time }) => {
+            if (isEmptyTrackerCell(time)) {
+              return;
+            }
+
+            const fsvDateTime = parseUtcTimeOnDate(time, importTargetDate!);
+            if (!fsvDateTime) {
+              errors.push(`Row ${i + 1}: Invalid FSV ${fsvNumber} time "${time}". Must be ${CSV_TIME_FORMAT_DESCRIPTION}.`);
+              return;
+            }
+
+            importedTasks.push({
+              id: crypto.randomUUID(),
+              name: `${quantity} ${csvSpacecraft} FSV ${fsvNumber}`,
+              spacecraft: csvSpacecraft,
+              startTime: fsvDateTime.toISOString(),
+              type: "fsv",
+              preActionDuration: fsvTaskTypeDetails?.preActionDuration ?? 0,
+              postActionDuration: fsvTaskTypeDetails?.postActionDuration ?? 0,
+              isCompleted: false,
+              owner,
+            });
+          });
         }
 
         if (errors.length > 0) {
@@ -615,17 +695,23 @@ export default function HomePage() {
         return;
       }
       
-      if (colIndices.spacecraft === -1 || colIndices.startTime === -1 || colIndices.type === -1) {
-          errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted, Owner.");
+      const isMissingRequiredGenericHeader =
+        colIndices.spacecraft === -1 || colIndices.startTime === -1 || colIndices.type === -1;
+
+      if (isMissingRequiredGenericHeader) {
+        errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted, Owner.");
       }
 
       for (let i = 1; i < lines.length; i++) {
+        if (isMissingRequiredGenericHeader) {
+          break;
+        }
+
         const values = parseCsvLine(lines[i]);
         if (values.length < headerLine.length && errors.length === 0) { 
             errors.push(`Row ${i + 1}: Incorrect number of columns. Expected ${headerLine.length}, got ${values.length}.`);
             continue;
         }
-        if (errors.length > 0 && colIndices.spacecraft === -1) break; 
 
         try {
           const csvSpacecraft = values[colIndices.spacecraft] as Spacecraft;
@@ -639,7 +725,7 @@ export default function HomePage() {
 
           const combinedDateTime = parseUtcTimeOnDate(csvTime, importTargetDate!);
           if (!combinedDateTime) {
-            errors.push(`Row ${i + 1}: Invalid startTime format "${csvTime}". Must be H:mm, HH:mm, or HH:mm:ss.`);
+            errors.push(`Row ${i + 1}: Invalid startTime format "${csvTime}". Must be ${CSV_TIME_FORMAT_DESCRIPTION}.`);
             continue;
           }
 
@@ -853,11 +939,11 @@ export default function HomePage() {
             <CardDescription>
               Upload a day-agnostic CSV file or paste high priority FSV times. Select a target date, and the times will be applied to that date.
               <br />
-              Required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (in `H:mm`, `HH:mm`, or `HH:mm:ss` format), <strong>type</strong>.
+              Required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (colon or compact UTC time), <strong>type</strong>.
               <br />
               Optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>, <strong>Owner</strong>.
               <br />
-              TL Monitoring Tracker CSVs are also supported with <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, and <strong>Needs CAD Check</strong> columns.
+              TL Monitoring Tracker CSVs are also supported with <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, <strong>Needs CAD Check</strong>, and optional <strong>FSV 1</strong>, <strong>FSV 2</strong>, <strong>FSV 3</strong> columns.
               <br />
               High priority pasted text can contain slash-separated <strong>hhmm</strong> groups; each line group becomes <strong>High Pri x</strong>.
             </CardDescription>
