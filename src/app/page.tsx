@@ -160,6 +160,7 @@ const HIGH_PRIORITY_TIME_GROUP_PATTERN =
   /(^|[^/\d])((?:[01]\d|2[0-3])[0-5]\d(?:\/(?:[01]\d|2[0-3])[0-5]\d)+)(?=$|[^/\d])/g;
 
 const OWNER_NAME_STORAGE_KEY = "timeflow-owner-name";
+const normalizeOwnerFilterValue = (value: string) => value.trim().toLowerCase();
 
 const extractHighPriorityTimeGroups = (pastedText: string, targetDate: Date) => {
   const groups: Date[][] = [];
@@ -206,9 +207,9 @@ export default function HomePage() {
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [showOnlyMyTasks, setShowOnlyMyTasks] = useState(false);
   const [ownerName, setOwnerName] = useState("");
-  const normalizedOwnerName = ownerName.trim().toLowerCase();
+  const normalizedOwnerName = normalizeOwnerFilterValue(ownerName);
   const taskListTasks = showOnlyMyTasks
-    ? tasks.filter((task) => normalizedOwnerName !== "" && (task.owner ?? "").trim().toLowerCase() === normalizedOwnerName)
+    ? tasks.filter((task) => normalizedOwnerName !== "" && normalizeOwnerFilterValue(task.owner ?? "") === normalizedOwnerName)
     : tasks;
   const completedTaskCount = taskListTasks.filter((task) => task.isCompleted).length;
 
@@ -878,7 +879,7 @@ export default function HomePage() {
       <main className="relative z-10 flex-grow space-y-8">
         <section>
           <DayScheduleChart
-            tasks={tasks}
+            tasks={taskListTasks}
             selectedDate={selectedDateForChart}
             onRefreshNowLine={handleRefreshNowLine}
             refreshSignal={nowRefreshKey}
