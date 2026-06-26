@@ -286,8 +286,11 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
   return (
     <Card className="border-0 bg-card/95">
       <CardHeader className="px-4 pb-2 pt-3">
-        <div className="space-y-1 opacity-70 transition-opacity hover:opacity-100">
-            <Label htmlFor="time-range-slider" className="text-xs font-medium text-muted-foreground">
+        <div className="group space-y-1 opacity-70 transition-opacity hover:opacity-100">
+            <Label
+              htmlFor="time-range-slider"
+              className="inline-block origin-left text-xs font-medium text-muted-foreground transition-[color,transform] duration-150 group-hover:scale-[1.03] group-hover:text-primary group-active:scale-[1.03] group-active:text-primary"
+            >
               Visible Time Range (UTC): {formatMinutesToTimeLocal(viewWindow[0])} - {formatMinutesToTimeLocal(viewWindow[1])}
             </Label>
             <Slider
@@ -297,7 +300,13 @@ export function DayScheduleChart({ tasks, selectedDate, onRefreshNowLine, refres
               step={15} 
               value={viewWindow}
               onValueChange={handleSliderChange}
-              className="h-3 w-full [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:border-zinc-500 [&_[role=slider]]:bg-zinc-800 [&_[role=slider]]:shadow-sm [&_[role=slider]]:ring-offset-background [&_[data-orientation=horizontal]]:bg-zinc-800/70 [&_[data-orientation=horizontal]>span]:bg-zinc-500"
+              onPointerUp={(event) => {
+                const activeElement = document.activeElement;
+                if (activeElement instanceof HTMLElement && event.currentTarget.contains(activeElement)) {
+                  activeElement.blur();
+                }
+              }}
+              className="h-3 w-full [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:border-zinc-500 [&_[role=slider]]:bg-zinc-800 [&_[role=slider]]:shadow-sm [&_[role=slider]]:ring-offset-background [&_[data-orientation=horizontal]]:bg-zinc-800/70 [&_[data-orientation=horizontal]]:transition-colors [&_[data-orientation=horizontal]>span]:bg-zinc-500 [&_[data-orientation=horizontal]>span]:transition-colors group-hover:[&_[data-orientation=horizontal]]:bg-primary/20 group-hover:[&_[data-orientation=horizontal]>span]:bg-primary group-active:[&_[data-orientation=horizontal]]:bg-primary/25 group-active:[&_[data-orientation=horizontal]>span]:bg-primary"
               aria-label="Time range slider"
             />
         </div>
