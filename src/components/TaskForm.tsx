@@ -29,9 +29,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Task, TaskType, Spacecraft } from "@/types";
 import { BLANK_SPACECRAFT, TASK_TYPES, SPACECRAFT_OPTIONS, SELECTABLE_SPACECRAFT_OPTIONS } from "@/types";
-import { getTaskTypeDetails } from "@/lib/task-utils";
+import { getTaskTypeDetails, getUniqueAutoTaskName } from "@/lib/task-utils";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { PlusCircle, Edit3 } from "lucide-react";
 import { useEffect } from "react";
@@ -50,9 +51,15 @@ const taskFormSchema = z.object({
   type: z.enum(TASK_TYPES),
   preActionDuration: z.coerce.number().min(0, "Duration must be non-negative.").default(0),
   postActionDuration: z.coerce.number().min(0, "Duration must be non-negative.").default(0),
+  changeMatchingTaskNames: z.boolean().default(false),
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
+
+export interface TaskFormSubmitOptions {
+  changeMatchingTaskNames: boolean;
+  originalTaskName: string;
+}
 
 const BLANK_SPACECRAFT_SELECT_VALUE = "__blank_spacecraft__";
 
@@ -65,8 +72,9 @@ const fromSpacecraftSelectValue = (value: string): Spacecraft =>
 interface TaskFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSubmit: (task: Task) => void;
+  onSubmit: (task: Task, options?: TaskFormSubmitOptions) => void;
   initialTask?: Task | null;
+  existingTaskNames?: readonly (string | null | undefined)[];
 }
 
 const getUtcDateTimeLocalString = (date: Date): string => {
@@ -78,13 +86,14 @@ const getUtcDateTimeLocalString = (date: Date): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFormProps) {
+export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask, existingTaskNames = [] }: TaskFormProps) {
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
 
   const defaultInitialUtcTimeForInput = getUtcDateTimeLocalString(new Date());
   const defaultTaskType = effectiveTaskTypeOptions.length > 0 ? effectiveTaskTypeOptions[0].value : TASK_TYPES[0];
   const defaultSpacecraft = SELECTABLE_SPACECRAFT_OPTIONS[0];
   const defaultTaskTypeDetails = getTaskTypeDetails(defaultTaskType, effectiveTaskTypeOptions);
+  const canChangeMatchingTaskNames = Boolean(initialTask?.name?.trim());
 
 
   const form = useForm<TaskFormValues>({
@@ -98,6 +107,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           type: initialTask.type,
           preActionDuration: initialTask.preActionDuration,
           postActionDuration: initialTask.postActionDuration,
+          changeMatchingTaskNames: false,
         }
       : {
           name: "",
@@ -107,6 +117,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           type: defaultTaskType,
           preActionDuration: defaultTaskTypeDetails?.preActionDuration ?? 0,
           postActionDuration: defaultTaskTypeDetails?.postActionDuration ?? 0,
+          changeMatchingTaskNames: false,
         },
   });
 
@@ -125,6 +136,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           type: initialTask.type,
           preActionDuration: initialTask.preActionDuration,
           postActionDuration: initialTask.postActionDuration,
+          changeMatchingTaskNames: false,
         });
       } else {
         form.reset({
@@ -135,6 +147,7 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
           type: defaultTypeForNew,
           preActionDuration: defaultDetailsForNew?.preActionDuration ?? 0,
           postActionDuration: defaultDetailsForNew?.postActionDuration ?? 0,
+          changeMatchingTaskNames: false,
         });
       }
     }
@@ -157,9 +170,10 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
     
     let taskName = values.name;
     if (!taskName || taskName.trim() === "") {
-      taskName = values.spacecraft
+      const autoName = values.spacecraft
         ? `${selectedTaskTypeDetails?.label || values.type} - ${values.spacecraft}`
         : `${selectedTaskTypeDetails?.label || values.type}`;
+      taskName = getUniqueAutoTaskName(autoName, existingTaskNames);
     }
 
     const task: Task = {
@@ -173,7 +187,10 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
       isCompleted: initialTask?.isCompleted || false,
       owner: values.owner?.trim() || "",
     };
-    onSubmit(task);
+    onSubmit(task, {
+      changeMatchingTaskNames: values.changeMatchingTaskNames,
+      originalTaskName: initialTask?.name?.trim() || "",
+    });
     onOpenChange(false);
   };
 
@@ -200,6 +217,25 @@ export function TaskForm({ isOpen, onOpenChange, onSubmit, initialTask }: TaskFo
                 </FormItem>
               )}
             />
+            {canChangeMatchingTaskNames && (
+              <FormField
+                control={form.control}
+                name="changeMatchingTaskNames"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={(checked) => field.onChange(checked === true)}
+                      />
+                    </FormControl>
+                    <FormLabel className="cursor-pointer font-normal">
+                      Change all tasks with this name
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="owner"

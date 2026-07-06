@@ -3,7 +3,7 @@
 
 import { useState, useEffect, ChangeEvent } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { TaskForm } from "@/components/TaskForm";
+import { TaskForm, type TaskFormSubmitOptions } from "@/components/TaskForm";
 import { Timeline } from "@/components/Timeline";
 import type { Task, TaskType, Spacecraft } from "@/types";
 import { BLANK_SPACECRAFT, SPACECRAFT_OPTIONS } from "@/types";
@@ -14,7 +14,7 @@ import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { SpreadsheetTaskInput } from "@/components/SpreadsheetTaskInput";
-import { getTaskTypeDetails } from "@/lib/task-utils";
+import { getTaskTypeDetails, getUniqueAutoTaskName } from "@/lib/task-utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -201,7 +201,7 @@ export default function HomePage() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [highPriorityPasteText, setHighPriorityPasteText] = useState("");
   const [importTargetDate, setImportTargetDate] = useState<Date | undefined>(new Date());
-  const [importMode, setImportMode] = useState<"replace" | "add">("replace");
+  const [importMode, setImportMode] = useState<"replace" | "add">("add");
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
   const [nowRefreshKey, setNowRefreshKey] = useState(0);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
@@ -304,14 +304,34 @@ export default function HomePage() {
     });
   };
 
-  const handleEditTask = (updatedTask: Task) => {
+  const handleEditTask = (updatedTask: Task, options?: TaskFormSubmitOptions) => {
+    const originalTaskName = options?.originalTaskName.trim() ?? "";
+    const updatedTaskName = updatedTask.name?.trim() || "Task";
+    const shouldChangeMatchingTaskNames = Boolean(options?.changeMatchingTaskNames && originalTaskName);
+    const changedTaskCount = shouldChangeMatchingTaskNames
+      ? tasks.filter((task) => task.id === updatedTask.id || task.name?.trim() === originalTaskName).length
+      : 1;
+
     setTasks((prevTasks) =>
-      prevTasks.map((task) => (task.id === updatedTask.id ? updatedTask : task))
+      prevTasks.map((task) => {
+        if (task.id === updatedTask.id) {
+          return updatedTask;
+        }
+
+        if (shouldChangeMatchingTaskNames && task.name?.trim() === originalTaskName) {
+          return { ...task, name: updatedTask.name };
+        }
+
+        return task;
+      })
     );
     setEditingTask(null);
     toast({
       title: "Task Updated",
-      description: `"${updatedTask.name}" has been updated.`,
+      description:
+        shouldChangeMatchingTaskNames && changedTaskCount > 1 && originalTaskName !== updatedTaskName
+          ? `${changedTaskCount} task(s) named "${originalTaskName}" were renamed to "${updatedTaskName}".`
+          : `"${updatedTaskName}" has been updated.`,
       variant: "default",
     });
   };
@@ -477,19 +497,23 @@ export default function HomePage() {
     }
 
     const fsvTaskTypeDetails = getTaskTypeDetails("fsv", effectiveTaskTypeOptions);
-    const importedTasks: Task[] = timeGroups.flatMap((group, groupIndex) => {
-      const taskName = `High Pri ${groupIndex + 1}`;
+    const reservedTaskNames = importMode === "replace" ? [] : tasks.map((task) => task.name);
+    const importedTasks: Task[] = timeGroups.flatMap((group) => {
+      return group.map((dateTime) => {
+        const taskName = getUniqueAutoTaskName("High Pri 1", reservedTaskNames);
+        reservedTaskNames.push(taskName);
 
-      return group.map((dateTime) => ({
-        id: crypto.randomUUID(),
-        name: taskName,
-        spacecraft: BLANK_SPACECRAFT,
-        startTime: dateTime.toISOString(),
-        type: "fsv" as TaskType,
-        preActionDuration: fsvTaskTypeDetails?.preActionDuration ?? 0,
-        postActionDuration: fsvTaskTypeDetails?.postActionDuration ?? 0,
-        isCompleted: false,
-      }));
+        return {
+          id: crypto.randomUUID(),
+          name: taskName,
+          spacecraft: BLANK_SPACECRAFT,
+          startTime: dateTime.toISOString(),
+          type: "fsv" as TaskType,
+          preActionDuration: fsvTaskTypeDetails?.preActionDuration ?? 0,
+          postActionDuration: fsvTaskTypeDetails?.postActionDuration ?? 0,
+          isCompleted: false,
+        };
+      });
     });
 
     if (importMode === "replace") {
@@ -533,6 +557,7 @@ export default function HomePage() {
       const headerLine = parseCsvLine(lines[0]).map(normalizeCsvHeader);
       const importedTasks: Task[] = [];
       const errors: string[] = [];
+      const reservedTaskNames = importMode === "replace" ? [] : tasks.map((task) => task.name);
 
       const tlTrackerColIndices = {
         quantity: headerLine.indexOf("quantity"),
@@ -741,10 +766,12 @@ export default function HomePage() {
 
           let name = colIndices.name !== -1 ? values[colIndices.name] : undefined;
           if (!name || name.trim() === "") {
-            name = csvSpacecraft
+            const autoName = csvSpacecraft
               ? `${taskTypeDetails?.label || csvTaskType} - ${csvSpacecraft}`
               : `${taskTypeDetails?.label || csvTaskType}`;
+            name = getUniqueAutoTaskName(autoName, reservedTaskNames);
           }
+          reservedTaskNames.push(name);
 
           const preActionDurationStr = colIndices.preActionDuration !== -1 ? values[colIndices.preActionDuration] : undefined;
           const preActionDuration = preActionDurationStr !== undefined && !isNaN(parseInt(preActionDurationStr)) ? parseInt(preActionDurationStr) : (taskTypeDetails?.preActionDuration ?? 0);
@@ -932,7 +959,10 @@ export default function HomePage() {
           />
         </section>
 
-        <SpreadsheetTaskInput onBatchAddTasks={handleBatchAddTasks} />
+        <SpreadsheetTaskInput
+          onBatchAddTasks={handleBatchAddTasks}
+          existingTaskNames={tasks.map((task) => task.name)}
+        />
 
         <Card className="border-0">
           <CardHeader>
@@ -946,7 +976,7 @@ export default function HomePage() {
               <br />
               TL Monitoring Tracker CSVs are also supported with <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, <strong>Needs CAD Check</strong>, and optional <strong>FSV 1</strong>, <strong>FSV 2</strong>, <strong>FSV 3</strong> columns.
               <br />
-              High priority pasted text can contain slash-separated <strong>hhmm</strong> groups; each line group becomes <strong>High Pri x</strong>.
+              High priority pasted text can contain slash-separated <strong>hhmm</strong> groups; each imported time gets the next available <strong>High Pri x</strong> name.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -983,7 +1013,7 @@ export default function HomePage() {
             </div>
             <div>
               <Label>Import Mode</Label>
-              <RadioGroup defaultValue="replace" onValueChange={(value: "replace" | "add") => setImportMode(value)} className="mt-1 flex space-x-4">
+              <RadioGroup defaultValue="add" onValueChange={(value: "replace" | "add") => setImportMode(value)} className="mt-1 flex space-x-4">
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="replace" id="replaceMode" />
                   <Label htmlFor="replaceMode">Replace existing tasks</Label>
@@ -1019,6 +1049,7 @@ export default function HomePage() {
         onOpenChange={setIsTaskFormModalOpen}
         onSubmit={editingTask ? handleEditTask : handleAddTask}
         initialTask={editingTask}
+        existingTaskNames={tasks.filter((task) => task.id !== editingTask?.id).map((task) => task.name)}
       />
 
       <TaskTypeSettingsModal

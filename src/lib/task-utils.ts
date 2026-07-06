@@ -63,6 +63,50 @@ export function getTaskTypeDetails(type: TaskType, effectiveOptions: readonly Ta
   return effectiveOptions.find(option => option.value === type);
 }
 
+const TRAILING_TASK_NUMBER_PATTERN = /^(.*\S)\s+(\d+)$/;
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function getUniqueAutoTaskName(
+  baseName: string,
+  existingNames: readonly (string | null | undefined)[]
+): string {
+  const trimmedBaseName = baseName.trim();
+  const trailingNumberMatch = trimmedBaseName.match(TRAILING_TASK_NUMBER_PATTERN);
+  const requestedNumber = trailingNumberMatch ? Number(trailingNumberMatch[2]) : undefined;
+  const namePrefix = trailingNumberMatch ? trailingNumberMatch[1].trimEnd() : trimmedBaseName;
+  const matchingNamePattern = new RegExp(`^${escapeRegExp(namePrefix)}(?:\\s+(\\d+))?$`, "i");
+  let hasExactPrefixMatch = false;
+  let maxExistingNumber = 0;
+
+  existingNames.forEach((existingName) => {
+    const match = existingName?.trim().match(matchingNamePattern);
+    if (!match) {
+      return;
+    }
+
+    if (!match[1]) {
+      hasExactPrefixMatch = true;
+      return;
+    }
+
+    const existingNumber = Number(match[1]);
+    if (Number.isInteger(existingNumber)) {
+      maxExistingNumber = Math.max(maxExistingNumber, existingNumber);
+    }
+  });
+
+  if (requestedNumber !== undefined) {
+    return `${namePrefix} ${Math.max(requestedNumber, maxExistingNumber + 1)}`;
+  }
+
+  if (!hasExactPrefixMatch) {
+    return trimmedBaseName;
+  }
+
+  return `${namePrefix} ${Math.max(2, maxExistingNumber + 1)}`;
+}
+
 export function formatTaskTime(isoString: string): string {
   if (!isoString) return "";
   const date = new Date(isoString);

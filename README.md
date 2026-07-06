@@ -60,7 +60,7 @@ Review the imported task list after processing so any partial import errors can 
 
 ### High Pri FSV Paste
 
-Use the high priority paste area for slash-separated `hhmm` time groups such as `0730/0745/0810`. Each line group becomes a numbered High Pri group on the selected target date.
+Use the high priority paste area for slash-separated `hhmm` time groups such as `0730/0745/0810`. Each imported time gets the next available numbered High Pri name on the selected target date.
 
 This is fastest when pulling high priority FSV times from text notes or messages without preparing a full CSV first.
 

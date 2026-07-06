@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
-import { getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS } from "@/lib/task-utils";
+import { getTaskTypeDetails, DEFAULT_TASK_TYPE_OPTIONS, getUniqueAutoTaskName } from "@/lib/task-utils";
 import { PlusCircle, Trash2, SaveAll, Copy, Calendar as CalendarIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -34,6 +34,7 @@ import { Label } from "./ui/label";
 
 interface SpreadsheetTaskInputProps {
   onBatchAddTasks: (tasksToAdd: Omit<Task, "id" | "isCompleted">[]) => void;
+  existingTaskNames?: readonly (string | null | undefined)[];
 }
 
 const getUtcTimeLocalString = (date: Date): string => {
@@ -50,7 +51,7 @@ const toSpacecraftSelectValue = (spacecraft: Spacecraft) =>
 const fromSpacecraftSelectValue = (value: string): Spacecraft =>
   value === BLANK_SPACECRAFT_SELECT_VALUE ? BLANK_SPACECRAFT : (value as Spacecraft);
 
-export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputProps) {
+export function SpreadsheetTaskInput({ onBatchAddTasks, existingTaskNames = [] }: SpreadsheetTaskInputProps) {
   const [rows, setRows] = useState<SpreadsheetTaskRow[]>([]);
   const { effectiveTaskTypeOptions } = useTaskTypeConfig();
   const { toast } = useToast();
@@ -144,6 +145,8 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       return;
     }
 
+    const reservedTaskNames = [...existingTaskNames];
+
     for (const row of rows) {
       const taskTypeDetails = getTaskTypeDetails(row.type, effectiveTaskTypeOptions);
       if (!taskTypeDetails) {
@@ -154,8 +157,10 @@ export function SpreadsheetTaskInput({ onBatchAddTasks }: SpreadsheetTaskInputPr
       
       let taskName = row.name;
       if (!taskName || taskName.trim() === "") {
-        taskName = row.spacecraft ? `${taskTypeDetails.label} - ${row.spacecraft}` : taskTypeDetails.label;
+        const autoName = row.spacecraft ? `${taskTypeDetails.label} - ${row.spacecraft}` : taskTypeDetails.label;
+        taskName = getUniqueAutoTaskName(autoName, reservedTaskNames);
       }
+      reservedTaskNames.push(taskName);
       
       const timeParts = row.time.match(/^(\d{2}):(\d{2})(:(\d{2}))?$/);
       if (!timeParts) {
