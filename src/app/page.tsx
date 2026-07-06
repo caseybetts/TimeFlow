@@ -9,13 +9,13 @@ import type { Task, TaskType, Spacecraft } from "@/types";
 import { BLANK_SPACECRAFT, SPACECRAFT_OPTIONS } from "@/types";
 import { useTasks } from "@/hooks/useLocalStorage";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2, Calendar as CalendarIcon, ClipboardPaste, UserRound } from "lucide-react";
+import { PlusCircle, Sun, Moon, LoaderCircle, Settings, Upload, Download, Trash2, Calendar as CalendarIcon, ClipboardPaste, UserRound, Info } from "lucide-react";
 import { DayScheduleChart } from "@/components/DayScheduleChart";
 import { TaskTypeSettingsModal } from "@/components/TaskTypeSettingsModal";
 import { useTaskTypeConfig } from "@/hooks/useTaskTypeConfig";
 import { SpreadsheetTaskInput } from "@/components/SpreadsheetTaskInput";
 import { getTaskTypeDetails, getUniqueAutoTaskName } from "@/lib/task-utils";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -966,18 +966,47 @@ export default function HomePage() {
 
         <Card className="border-0">
           <CardHeader>
-            <CardTitle>Import Tasks</CardTitle>
-            <CardDescription>
-              Upload a day-agnostic CSV file or paste high priority FSV times. Select a target date, and the times will be applied to that date.
-              <br />
-              Required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (colon or compact UTC time), <strong>type</strong>.
-              <br />
-              Optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>, <strong>Owner</strong>.
-              <br />
-              TL Monitoring Tracker CSVs are also supported with <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, <strong>Needs CAD Check</strong>, and optional <strong>FSV 1</strong>, <strong>FSV 2</strong>, <strong>FSV 3</strong> columns.
-              <br />
-              High priority pasted text can contain slash-separated <strong>hhmm</strong> groups; each imported time gets the next available <strong>High Pri x</strong> name.
-            </CardDescription>
+            <div className="flex items-center gap-2">
+              <CardTitle>Import Tasks</CardTitle>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    aria-label="Show import tips"
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-80 space-y-3 text-sm leading-6">
+                  <div>
+                    <p className="font-medium text-foreground">Pro tip</p>
+                    <p className="text-muted-foreground">
+                      Select a target UTC date, and day-agnostic times will be applied to that date.
+                    </p>
+                  </div>
+                  <div className="space-y-1 text-muted-foreground">
+                    <p>
+                      Import mode defaults to <strong>Add to existing tasks</strong>; choose <strong>Replace existing tasks</strong> to start over with only the imported tasks.
+                    </p>
+                    <p>
+                      Generic CSV required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (colon or compact UTC time), <strong>type</strong>.
+                    </p>
+                    <p>
+                      Generic CSV optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>, <strong>Owner</strong>.
+                    </p>
+                    <p>
+                      TL Monitoring Tracker CSVs require <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, <strong>Needs CAD Check</strong>, and support optional <strong>Owner</strong>, <strong>FSV 1</strong>, <strong>FSV 2</strong>, <strong>FSV 3</strong> columns.
+                    </p>
+                    <p>
+                      High priority pasted text uses slash-separated <strong>hhmm</strong> groups; each imported time gets the next available <strong>High Pri x</strong> name.
+                    </p>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
