@@ -46,7 +46,7 @@ Use **Export CSV** to create a reusable day-agnostic task template. The exported
 
 Use **Import Tasks** to apply a CSV schedule to a target date. Choose **Replace existing tasks** when starting a fresh day, or **Add to existing tasks** when merging in extra work.
 
-Generic CSV imports support `spacecraft`, `startTime`, and `type`, with optional `name`, `preActionDuration`, `postActionDuration`, `isCompleted`, and `Owner` columns.
+Generic CSV imports support `spacecraft`, `startTime`, and `type`, with optional `name`, `preActionDuration`, `postActionDuration`, `Done`, and `Owner` columns. Legacy `isCompleted` columns are still accepted.
 
 CSV time fields accept colon or compact UTC forms, such as `7:30`, `07:30`, `07:30:00`, `730`, `0730`, and `073000`.
 
@@ -60,7 +60,7 @@ Review the imported task list after processing so any partial import errors can 
 
 ### High Pri FSV Paste
 
-Use the high priority paste area for slash-separated `hhmm` time groups such as `0730/0745/0810`. Each imported time gets the next available numbered High Pri name on the selected target date.
+Use the high priority paste area for slash-separated `hhmm` time groups such as `0730/0745/0810`. Each line group gets the next available numbered High Pri name on the selected target date.
 
 This is fastest when pulling high priority FSV times from text notes or messages without preparing a full CSV first.
 

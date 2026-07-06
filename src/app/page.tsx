@@ -68,6 +68,20 @@ const parseCsvLine = (line: string): string[] => {
 const getCsvValue = (values: string[], columnIndex: number) =>
   columnIndex >= 0 ? values[columnIndex]?.trim() ?? "" : "";
 
+const getFirstCsvHeaderIndex = (headers: string[], headerNames: string[]) => {
+  for (const headerName of headerNames) {
+    const headerIndex = headers.indexOf(headerName);
+    if (headerIndex !== -1) {
+      return headerIndex;
+    }
+  }
+
+  return -1;
+};
+
+const parseCsvBoolean = (value: string) =>
+  ["true", "yes", "y", "1", "done", "complete", "completed"].includes(value.trim().toLowerCase());
+
 const getFsvColumnNumberFromHeader = (normalizedHeader: string): 1 | 2 | 3 | null => {
   const compactHeader = normalizedHeader.replace(/[^a-z0-9]/g, "");
   const match =
@@ -428,7 +442,7 @@ export default function HomePage() {
 
     const header = [
       "name", "spacecraft", "startTime", 
-      "type", "preActionDuration", "postActionDuration", "isCompleted", "Owner"
+      "type", "preActionDuration", "postActionDuration", "Done", "Owner"
     ];
     const csvRows = [header.join(',')];
 
@@ -443,7 +457,7 @@ export default function HomePage() {
         escapeCsvField(task.type),
         escapeCsvField(task.preActionDuration),
         escapeCsvField(task.postActionDuration),
-        escapeCsvField(task.isCompleted),
+        escapeCsvField(Boolean(task.isCompleted)),
         escapeCsvField(task.owner ?? "")
       ];
       csvRows.push(row.join(','));
@@ -499,10 +513,10 @@ export default function HomePage() {
     const fsvTaskTypeDetails = getTaskTypeDetails("fsv", effectiveTaskTypeOptions);
     const reservedTaskNames = importMode === "replace" ? [] : tasks.map((task) => task.name);
     const importedTasks: Task[] = timeGroups.flatMap((group) => {
-      return group.map((dateTime) => {
-        const taskName = getUniqueAutoTaskName("High Pri 1", reservedTaskNames);
-        reservedTaskNames.push(taskName);
+      const taskName = getUniqueAutoTaskName("High Pri 1", reservedTaskNames);
+      reservedTaskNames.push(taskName);
 
+      return group.map((dateTime) => {
         return {
           id: crypto.randomUUID(),
           name: taskName,
@@ -581,7 +595,7 @@ export default function HomePage() {
         type: headerLine.indexOf("type"),
         preActionDuration: headerLine.indexOf("preactionduration"),
         postActionDuration: headerLine.indexOf("postactionduration"),
-        isCompleted: headerLine.indexOf("iscompleted"),
+        isCompleted: getFirstCsvHeaderIndex(headerLine, ["done", "iscompleted"]),
         owner: headerLine.indexOf("owner"),
       };
 
@@ -725,7 +739,7 @@ export default function HomePage() {
         colIndices.spacecraft === -1 || colIndices.startTime === -1 || colIndices.type === -1;
 
       if (isMissingRequiredGenericHeader) {
-        errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, isCompleted, Owner.");
+        errors.push("CSV header is missing one or more required columns: spacecraft, startTime, type. Optional: name, preActionDuration, postActionDuration, Done, Owner.");
       }
 
       for (let i = 1; i < lines.length; i++) {
@@ -779,8 +793,7 @@ export default function HomePage() {
           const postActionDurationStr = colIndices.postActionDuration !== -1 ? values[colIndices.postActionDuration] : undefined;
           const postActionDuration = postActionDurationStr !== undefined && !isNaN(parseInt(postActionDurationStr)) ? parseInt(postActionDurationStr) : (taskTypeDetails?.postActionDuration ?? 0);
           
-          const isCompletedStr = colIndices.isCompleted !== -1 ? values[colIndices.isCompleted]?.toLowerCase() : "false";
-          const isCompleted = isCompletedStr === "true";
+          const isCompleted = colIndices.isCompleted !== -1 ? parseCsvBoolean(values[colIndices.isCompleted] ?? "") : false;
           const owner = colIndices.owner !== -1 ? values[colIndices.owner]?.trim() : "";
 
 
@@ -995,13 +1008,13 @@ export default function HomePage() {
                       Generic CSV required columns: <strong>spacecraft</strong>, <strong>startTime</strong> (colon or compact UTC time), <strong>type</strong>.
                     </p>
                     <p>
-                      Generic CSV optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>isCompleted</strong>, <strong>Owner</strong>.
+                      Generic CSV optional columns: <strong>name</strong>, <strong>preActionDuration</strong>, <strong>postActionDuration</strong>, <strong>Done</strong>, <strong>Owner</strong>.
                     </p>
                     <p>
                       TL Monitoring Tracker CSVs require <strong>Quantity</strong>, <strong>SCID</strong>, <strong>Acquisition Time</strong>, <strong>Needs CAD Check</strong>, and support optional <strong>Owner</strong>, <strong>FSV 1</strong>, <strong>FSV 2</strong>, <strong>FSV 3</strong> columns.
                     </p>
                     <p>
-                      High priority pasted text uses slash-separated <strong>hhmm</strong> groups; each imported time gets the next available <strong>High Pri x</strong> name.
+                      High priority pasted text uses slash-separated <strong>hhmm</strong> groups; each line group gets the next available <strong>High Pri x</strong> name.
                     </p>
                   </div>
                 </PopoverContent>
