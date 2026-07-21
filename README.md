@@ -20,7 +20,7 @@ The table is usually the fastest and cleanest method because it lets you build a
 
 The **Add Task** button is still useful for one-off additions or quick edits when you only need to create a single scheduled item.
 
-Each task type has pre-action and post-action buffer durations. The task's core event time stays fixed, while the timeline uses those buffers to show the full work window around that event.
+Each task type has pre-action and post-action buffer durations. The task's core event time is based on the time entered by the user, while the timeline uses those buffers to show the full work window around that event. Pre-action and post-action buffer times are specific to the task type and can be edited when creating the task and default values can be changed in the settings.
 
 ### Timeline And Day View
 
