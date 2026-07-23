@@ -58,7 +58,7 @@ const packageJson = {
         start: "node server.js"
     },
     dependencies: {
-        "express": "^4.18.2"
+        "express": "5.2.1"
     }
 };
 
@@ -77,7 +77,7 @@ const port = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'out')));
 
 // Handle all routes by serving index.html
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
     res.sendFile(path.join(__dirname, 'out', 'index.html'));
 });
 
@@ -92,6 +92,9 @@ const outDir = path.join(__dirname, '..', 'out');
 const outDistDir = path.join(distDir, 'out');
 
 if (fs.existsSync(outDir)) {
+    if (fs.existsSync(outDistDir)) {
+        fs.rmSync(outDistDir, { recursive: true, force: true });
+    }
     copyDir(outDir, outDistDir);
 }
 
